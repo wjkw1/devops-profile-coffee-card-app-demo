@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: coffeecard
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coffeecard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+      target: runtime
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/coffeecard
+    volumes:
+      - ./api:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  seed:
+    build:
+      context: ./api
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/coffeecard
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "seed.py"]
+    profiles:
+      - seed
+
+volumes:
+  postgres_data:
