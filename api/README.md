@@ -35,8 +35,13 @@ api/
 │       └── 001_initial_schema.py  # customers + cards tables
 ├── alembic.ini
 ├── seed.py               # Idempotent local dev seed (Alice + Bob + 3 cards)
+├── tests/
+│   ├── conftest.py       # Fixtures: mock session, async HTTP client, model factories
+│   ├── test_customers.py # Unit tests for /customers endpoints
+│   └── test_cards.py     # Unit tests for /customers/{id}/cards endpoints
 ├── Dockerfile
 ├── requirements.txt
+├── requirements-dev.txt  # Test dependencies (pytest, pytest-asyncio, httpx)
 └── .env.example
 ```
 
@@ -76,6 +81,35 @@ OpenAPI docs are auto-generated at `http://localhost:8000/docs`.
 ```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/customers/11111111-1111-1111-1111-111111111111
+```
+
+## Running Tests
+
+Tests are unit tests — no database or Docker required. The SQLAlchemy session is mocked, so they run entirely in-process.
+
+Install test dependencies into your virtual environment (activate it first if you haven't already):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run all tests from the `api/` directory:
+
+```bash
+pytest
+```
+
+Run with verbose output to see each test name:
+
+```bash
+pytest -v
+```
+
+Run a single test file or class:
+
+```bash
+pytest tests/test_cards.py
+pytest tests/test_customers.py::TestUpdateCustomer
 ```
 
 ## Implemented Endpoints
