@@ -5,15 +5,15 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.database import DATABASE_URL
 from app.models import Card, Customer
+from app.settings import get_settings
 
 ALICE_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 BOB_ID = uuid.UUID("22222222-2222-2222-2222-222222222222")
 
 
 async def seed() -> None:
-    engine = create_async_engine(DATABASE_URL, echo=False)
+    engine = create_async_engine(get_settings().database_url, echo=False)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with session_factory() as session:
