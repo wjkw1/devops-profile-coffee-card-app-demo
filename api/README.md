@@ -22,9 +22,11 @@ api/
 │   ├── main.py           # FastAPI app — includes routers
 │   ├── database.py       # Async engine, session factory, get_session dep
 │   ├── models.py         # SQLAlchemy ORM: Customer, Card
-│   ├── schemas.py        # Pydantic response schemas: CustomerResponse, CardResponse
+│   ├── schemas.py        # Pydantic request/response schemas
+│   ├── settings.py       # Pydantic settings loaded from .env
 │   └── routers/
-│       ├── customers.py  # GET /customers/{customer_id}
+│       ├── customers.py  # Customer CRUD endpoints
+│       ├── cards.py      # Card endpoints nested under /customers
 │       └── health.py     # GET /health
 ├── alembic/
 │   ├── env.py            # Async Alembic runner, reads DATABASE_URL from env
@@ -78,16 +80,37 @@ curl http://localhost:8000/customers/11111111-1111-1111-1111-111111111111
 
 ## Implemented Endpoints
 
-| Method | Path                       | Status      |
-| ------ | -------------------------- | ----------- |
-| GET    | `/health`                  | Done        |
-| GET    | `/customers/{customer_id}` | Done        |
-| GET    | `/customers`               | Done        |
-| POST   | `/customers`               | Placeholder |
-| PATCH  | `/customers/{customer_id}` | Placeholder |
-| DELETE | `/customers/{customer_id}` | Placeholder |
+### Customers
 
-See the [root README](../README.md) for the full API contract including cards and actions.
+| Method | Path                       | Status      | Notes                                   |
+| ------ | -------------------------- | ----------- | --------------------------------------- |
+| GET    | `/customers`               | Done        | `?include=archived` to include archived |
+| POST   | `/customers`               | Placeholder |                                         |
+| GET    | `/customers/{customer_id}` | Done        |                                         |
+| PATCH  | `/customers/{customer_id}` | Done        | Updates name, email, or `is_archived`   |
+| DELETE | `/customers/{customer_id}` | Placeholder | Will soft-delete via `is_archived`      |
+
+### Cards
+
+| Method | Path                                       | Status | Notes                                   |
+| ------ | ------------------------------------------ | ------ | --------------------------------------- |
+| GET    | `/customers/{customer_id}/cards`           | Done   | `?include=archived` to include archived |
+| POST   | `/customers/{customer_id}/cards`           | Done   | Creates card with 5 credits             |
+| PATCH  | `/customers/{customer_id}/cards/{card_id}` | Done   | Updates `is_archived`                   |
+| DELETE | `/customers/{customer_id}/cards/{card_id}` | Done   | Soft-delete via `is_archived`           |
+
+### Actions
+
+| Method | Path                                              | Status      | Notes                          |
+| ------ | ------------------------------------------------- | ----------- | ------------------------------ |
+| POST   | `/customers/{customer_id}/cards/{card_id}/redeem` | Placeholder | Increments `credits_used` by 1 |
+| POST   | `/customers/{customer_id}/cards/{card_id}/refund` | Placeholder | Decrements `credits_used` by 1 |
+
+### Health
+
+| Method | Path      | Status |
+| ------ | --------- | ------ |
+| GET    | `/health` | Done   |
 
 ## Key Decisions
 
@@ -127,7 +150,7 @@ The builder stage installs `gcc` and `libpq-dev` (needed to compile asyncpg). Th
 
 ### `is_archived` soft-delete
 
-Archived customers are excluded at the query layer (`Customer.is_archived.is_(False)`) rather than via a model-level filter or view. This keeps the ORM model simple and makes it easy to query archived customers explicitly when needed.
+Both customers and cards use `is_archived` for soft-deletes. Records are excluded at the query layer (`is_archived.is_(False)`) rather than via a model-level filter or view, keeping the ORM model simple and making it easy to query archived records explicitly via `?include=archived`. Archived records can be restored via `PATCH` with `{ "is_archived": false }`.
 
 ## Environment Variables
 
