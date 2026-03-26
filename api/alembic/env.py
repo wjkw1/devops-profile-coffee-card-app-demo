@@ -1,6 +1,4 @@
 import asyncio
-import os
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -9,8 +7,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.models import Base
+from app.settings import get_settings
 
 config = context.config
 
@@ -21,7 +20,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+    url = get_settings().database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -40,8 +39,10 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     cfg = config.get_section(config.config_ini_section, {})
-    cfg["sqlalchemy.url"] = os.getenv("DATABASE_URL", cfg.get("sqlalchemy.url"))
-    connectable = async_engine_from_config(cfg, prefix="sqlalchemy.", poolclass=pool.NullPool)
+    cfg["sqlalchemy.url"] = get_settings().database_url
+    connectable = async_engine_from_config(
+        cfg, prefix="sqlalchemy.", poolclass=pool.NullPool
+    )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

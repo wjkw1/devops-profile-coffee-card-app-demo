@@ -42,13 +42,14 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 
 ### Card
 
-| Field             | Type     | Notes                                        |
-| ----------------- | -------- | -------------------------------------------- |
-| id                | UUID     | Primary key                                  |
-| customer_id       | UUID     | FK → Customer                                |
-| total_credits     | int      | Set on purchase (default 5)                  |
-| remaining_credits | int      | Decremented on redeem, incremented on refund |
-| created_at        | datetime | Set on creation                              |
+| Field         | Type     | Notes                                        |
+| ------------- | -------- | -------------------------------------------- |
+| id            | UUID     | Primary key                                  |
+| customer_id   | UUID     | FK → Customer                                |
+| total_credits | int      | Set on purchase (default 5)                  |
+| credits_used  | int      | Incremented on redeem, decremented on refund |
+| is_archived   | bool     | Soft-delete flag, defaults to `false`        |
+| created_at    | datetime | Set on creation                              |
 
 ## API Endpoints
 
@@ -64,11 +65,10 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 
 ### Cards
 
-| Method | Path                                     | Description           |
-| ------ | ---------------------------------------- | --------------------- |
-| GET    | /customers/{customer_id}/cards           | List customer's cards |
-| POST   | /customers/{customer_id}/cards           | Purchase a new card   |
-| GET    | /customers/{customer_id}/cards/{card_id} | View card detail      |
+| Method | Path                           | Description           |
+| ------ | ------------------------------ | --------------------- |
+| GET    | /customers/{customer_id}/cards | List customer's cards |
+| POST   | /customers/{customer_id}/cards | Purchase a new card   |
 
 ### Actions
 
@@ -86,7 +86,7 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 ## Business Rules
 
 1. A card is created with a configurable number of credits (default 5).
-2. Each redemption deducts 1 credit from the card's `remaining_credits`.
+2. Each redemption increments `credits_used` by 1.
 3. A redemption against a card with 0 remaining credits returns a 409 Conflict.
 4. A refund adds 1 credit back, up to the card's `total_credits` ceiling.
 5. Deleting a customer sets `is_archived = true` rather than removing the row. Archived customers are excluded from `GET /customers` by default.

@@ -14,7 +14,9 @@ BOB_ID = uuid.UUID("22222222-2222-2222-2222-222222222222")
 
 async def seed() -> None:
     engine = create_async_engine(get_settings().database_url, echo=False)
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with session_factory() as session:
         existing = await session.get(Customer, ALICE_ID)
@@ -28,11 +30,13 @@ async def seed() -> None:
         session.add_all([alice, bob])
         await session.flush()
 
-        session.add_all([
-            Card(customer_id=ALICE_ID, total_credits=5, remaining_credits=3),
-            Card(customer_id=ALICE_ID, total_credits=5, remaining_credits=5),
-            Card(customer_id=BOB_ID, total_credits=5, remaining_credits=0),
-        ])
+        session.add_all(
+            [
+                Card(customer_id=ALICE_ID, total_credits=5, credits_used=2),
+                Card(customer_id=ALICE_ID, total_credits=5, credits_used=5),
+                Card(customer_id=BOB_ID, total_credits=5, credits_used=0),
+            ]
+        )
 
         await session.commit()
 
