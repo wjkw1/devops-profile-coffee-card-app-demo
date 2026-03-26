@@ -13,6 +13,8 @@ EXAMPLE_CARD_RESPONSE = {
 
 
 class CardResponse(BaseModel):
+    """Represents a single coffee loyalty card belonging to a customer."""
+
     id: UUID
     customer_id: UUID
     total_credits: int
@@ -23,6 +25,8 @@ class CardResponse(BaseModel):
 
 
 class CustomerResponse(BaseModel):
+    """Full customer profile including all associated loyalty cards."""
+
     id: UUID
     name: str
     email: EmailStr | None
@@ -37,6 +41,8 @@ class CustomerResponse(BaseModel):
 
 
 class CustomerSummaryResponse(BaseModel):
+    """Lightweight customer representation used in list views (excludes cards)."""
+
     id: UUID
     name: str
     email: EmailStr | None
@@ -46,6 +52,8 @@ class CustomerSummaryResponse(BaseModel):
 
 
 class CustomerListResponse(BaseModel):
+    """Paginated list of customer summaries."""
+
     customers: list[CustomerSummaryResponse] = Field(
         default=[],
         examples=[
