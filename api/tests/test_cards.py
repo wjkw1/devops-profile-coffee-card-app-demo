@@ -1,7 +1,5 @@
 import uuid
 
-import pytest
-
 from tests.conftest import make_card, make_customer, scalars_all
 
 
@@ -123,9 +121,7 @@ class TestArchiveCard:
         customer = make_customer()
         mock_session.get.side_effect = [customer, None]
 
-        response = await client.delete(
-            f"/customers/{customer.id}/cards/{uuid.uuid4()}"
-        )
+        response = await client.delete(f"/customers/{customer.id}/cards/{uuid.uuid4()}")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Card not found"
@@ -208,3 +204,93 @@ class TestUpdateCard:
         )
 
         assert response.status_code == 404
+
+
+class TestRedeemCard:
+    """Tests for redeeming credits on a card. These operations are only
+    valid on active cards, and should return 400 if attempting to redeem with no
+    remaining credits or refund with no used credits."""
+
+    async def test_redeem_card_success(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=0, is_archived=False
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_credits"] == 5
+        assert data["credits_used"] == 1
+        assert data["is_archived"] is False
+        mock_session.commit.assert_called_once()
+
+    async def test_redeem_card_errors(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=5, is_archived=False
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Card has no remaining credits"
+        mock_session.commit.assert_not_called()
+
+    async def test_redeem_archived_card_errors(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=0, is_archived=True
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Card is archived and cannot be redeemed"
+        mock_session.commit.assert_not_called()
+
+
+class TestRefundCard:
+    """Tests for refunding credits on a card. These operations are only
+    valid on active cards, and should return 400 if attempting to refund with no
+    used credits."""
+
+    async def test_refund_card_success(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=5, is_archived=False
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_credits"] == 5
+        assert data["credits_used"] == 4
+        assert data["is_archived"] is False
+        mock_session.commit.assert_called_once()
+
+    async def test_refund_card_errors(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=0, is_archived=False
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Card has no used credits to refund"
+        mock_session.commit.assert_not_called()
+
+    async def test_refund_card_archived_errors(self, client, mock_session):
+        customer = make_customer()
+        card = make_card(
+            customer_id=customer.id, total_credits=5, credits_used=5, is_archived=True
+        )
+        mock_session.get.side_effect = [customer, card]
+        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Card is archived and cannot be refunded"
+        mock_session.commit.assert_not_called()

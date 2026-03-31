@@ -116,13 +116,13 @@ pytest tests/test_customers.py::TestUpdateCustomer
 
 ### Customers
 
-| Method | Path                       | Status      | Notes                                   |
-| ------ | -------------------------- | ----------- | --------------------------------------- |
-| GET    | `/customers`               | Done        | `?include=archived` to include archived |
-| POST   | `/customers`               | Placeholder |                                         |
-| GET    | `/customers/{customer_id}` | Done        |                                         |
-| PATCH  | `/customers/{customer_id}` | Done        | Updates name, email, or `is_archived`   |
-| DELETE | `/customers/{customer_id}` | Placeholder | Will soft-delete via `is_archived`      |
+| Method | Path                       | Status | Notes                                   |
+| ------ | -------------------------- | ------ | --------------------------------------- |
+| GET    | `/customers`               | Done   | `?include=archived` to include archived |
+| POST   | `/customers`               | Done   |                                         |
+| GET    | `/customers/{customer_id}` | Done   |                                         |
+| PATCH  | `/customers/{customer_id}` | Done   | Updates name, email, or `is_archived`   |
+| DELETE | `/customers/{customer_id}` | Done   | Will soft-delete via `is_archived`      |
 
 ### Cards
 
@@ -135,10 +135,10 @@ pytest tests/test_customers.py::TestUpdateCustomer
 
 ### Actions
 
-| Method | Path                                              | Status      | Notes                          |
-| ------ | ------------------------------------------------- | ----------- | ------------------------------ |
-| POST   | `/customers/{customer_id}/cards/{card_id}/redeem` | Placeholder | Increments `credits_used` by 1 |
-| POST   | `/customers/{customer_id}/cards/{card_id}/refund` | Placeholder | Decrements `credits_used` by 1 |
+| Method | Path                                              | Status | Notes                          |
+| ------ | ------------------------------------------------- | ------ | ------------------------------ |
+| POST   | `/customers/{customer_id}/cards/{card_id}/redeem` | Done   | Increments `credits_used` by 1 |
+| POST   | `/customers/{customer_id}/cards/{card_id}/refund` | Done   | Decrements `credits_used` by 1 |
 
 ### Health
 

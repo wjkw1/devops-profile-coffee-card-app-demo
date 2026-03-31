@@ -91,3 +91,54 @@ async def update_card(
     await session.commit()
     await session.refresh(card)
     return card
+
+
+@router.post("/{card_id}/redeem", status_code=200)
+async def redeem_card(
+    customer_id: UUID, card_id: UUID, session: AsyncSession = Depends(get_session)
+):
+    """Redeem a loyalty card, decrementing its credit balance."""
+    customer = await session.get(Customer, customer_id)
+    if not customer or customer.is_archived:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    card = await session.get(Card, card_id)
+    if not card or card.customer_id != customer_id:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if card.is_archived:
+        raise HTTPException(
+            status_code=400, detail="Card is archived and cannot be redeemed"
+        )
+    if card.credits_used >= card.total_credits:
+        raise HTTPException(status_code=400, detail="Card has no remaining credits")
+    card.credits_used += 1
+    await session.commit()
+    return card
+
+
+@router.post("/{card_id}/refund", status_code=200)
+async def refund_card(
+    customer_id: UUID, card_id: UUID, session: AsyncSession = Depends(get_session)
+):
+    """Refund a loyalty card, incrementing its credit balance."""
+
+    customer = await session.get(Customer, customer_id)
+    if not customer or customer.is_archived:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    card = await session.get(Card, card_id)
+    if not card or card.customer_id != customer_id:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if card.is_archived:
+        raise HTTPException(
+            status_code=400, detail="Card is archived and cannot be refunded"
+        )
+    if card.credits_used <= 0:
+        raise HTTPException(
+            status_code=400, detail="Card has no used credits to refund"
+        )
+    card.credits_used -= 1
+    await session.commit()
+    return card
