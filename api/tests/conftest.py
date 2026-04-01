@@ -70,11 +70,16 @@ def mock_session():
     session.add = MagicMock()
 
     # Simulate DB applying server-side defaults (server_default) on refresh
-    async def _refresh(obj):
+    async def _refresh(obj, **kwargs):
         if not getattr(obj, "created_at", None):
             obj.created_at = datetime.now(timezone.utc)
         if not getattr(obj, "id", None):
             obj.id = uuid.uuid4()
+        if isinstance(obj, Customer):
+            if getattr(obj, "is_archived", None) is None:
+                obj.is_archived = False
+            if not getattr(obj, "cards", None):
+                obj.cards = []
         if isinstance(obj, Card):
             if getattr(obj, "total_credits", None) is None:
                 obj.total_credits = 5

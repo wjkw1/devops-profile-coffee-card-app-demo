@@ -10,7 +10,7 @@ class TestGetCards:
         mock_session.get.return_value = customer
         mock_session.execute.return_value = scalars_all(cards)
 
-        response = await client.get(f"/customers/{customer.id}/cards")
+        response = await client.get(f"/api/customers/{customer.id}/cards")
 
         assert response.status_code == 200
         assert len(response.json()) == 2
@@ -18,7 +18,7 @@ class TestGetCards:
     async def test_returns_404_for_unknown_customer(self, client, mock_session):
         mock_session.get.return_value = None
 
-        response = await client.get(f"/customers/{uuid.uuid4()}/cards")
+        response = await client.get(f"/api/customers/{uuid.uuid4()}/cards")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Customer not found"
@@ -26,7 +26,7 @@ class TestGetCards:
     async def test_returns_404_for_archived_customer(self, client, mock_session):
         mock_session.get.return_value = make_customer(is_archived=True)
 
-        response = await client.get(f"/customers/{uuid.uuid4()}/cards")
+        response = await client.get(f"/api/customers/{uuid.uuid4()}/cards")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Customer not found"
@@ -36,7 +36,7 @@ class TestGetCards:
         mock_session.get.return_value = customer
         mock_session.execute.return_value = scalars_all([])
 
-        response = await client.get(f"/customers/{customer.id}/cards")
+        response = await client.get(f"/api/customers/{customer.id}/cards")
 
         assert response.status_code == 200
         assert response.json() == []
@@ -48,7 +48,9 @@ class TestGetCards:
         mock_session.get.return_value = customer
         mock_session.execute.return_value = scalars_all([active, archived])
 
-        response = await client.get(f"/customers/{customer.id}/cards?include=archived")
+        response = await client.get(
+            f"/api/customers/{customer.id}/cards?include=archived"
+        )
 
         assert response.status_code == 200
         assert len(response.json()) == 2
@@ -59,7 +61,7 @@ class TestPurchaseCard:
         customer = make_customer()
         mock_session.get.return_value = customer
 
-        response = await client.post(f"/customers/{customer.id}/cards")
+        response = await client.post(f"/api/customers/{customer.id}/cards")
 
         assert response.status_code == 201
         data = response.json()
@@ -73,7 +75,7 @@ class TestPurchaseCard:
     async def test_returns_404_for_unknown_customer(self, client, mock_session):
         mock_session.get.return_value = None
 
-        response = await client.post(f"/customers/{uuid.uuid4()}/cards")
+        response = await client.post(f"/api/customers/{uuid.uuid4()}/cards")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Customer not found"
@@ -81,7 +83,7 @@ class TestPurchaseCard:
     async def test_returns_404_for_archived_customer(self, client, mock_session):
         mock_session.get.return_value = make_customer(is_archived=True)
 
-        response = await client.post(f"/customers/{uuid.uuid4()}/cards")
+        response = await client.post(f"/api/customers/{uuid.uuid4()}/cards")
 
         assert response.status_code == 404
 
@@ -92,7 +94,7 @@ class TestArchiveCard:
         card = make_card(customer_id=customer.id)
         mock_session.get.side_effect = [customer, card]
 
-        response = await client.delete(f"/customers/{customer.id}/cards/{card.id}")
+        response = await client.delete(f"/api/customers/{customer.id}/cards/{card.id}")
 
         assert response.status_code == 204
         assert card.is_archived is True
@@ -102,7 +104,7 @@ class TestArchiveCard:
         mock_session.get.return_value = None
 
         response = await client.delete(
-            f"/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}"
+            f"/api/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}"
         )
 
         assert response.status_code == 404
@@ -112,7 +114,7 @@ class TestArchiveCard:
         mock_session.get.return_value = make_customer(is_archived=True)
 
         response = await client.delete(
-            f"/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}"
+            f"/api/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}"
         )
 
         assert response.status_code == 404
@@ -121,7 +123,9 @@ class TestArchiveCard:
         customer = make_customer()
         mock_session.get.side_effect = [customer, None]
 
-        response = await client.delete(f"/customers/{customer.id}/cards/{uuid.uuid4()}")
+        response = await client.delete(
+            f"/api/customers/{customer.id}/cards/{uuid.uuid4()}"
+        )
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Card not found"
@@ -134,7 +138,7 @@ class TestArchiveCard:
         card = make_card(customer_id=other_customer_id)
         mock_session.get.side_effect = [customer, card]
 
-        response = await client.delete(f"/customers/{customer.id}/cards/{card.id}")
+        response = await client.delete(f"/api/customers/{customer.id}/cards/{card.id}")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Card not found"
@@ -147,7 +151,7 @@ class TestUpdateCard:
         mock_session.get.side_effect = [customer, card]
 
         response = await client.patch(
-            f"/customers/{customer.id}/cards/{card.id}",
+            f"/api/customers/{customer.id}/cards/{card.id}",
             json={"is_archived": False},
         )
 
@@ -161,7 +165,7 @@ class TestUpdateCard:
         mock_session.get.side_effect = [customer, card]
 
         response = await client.patch(
-            f"/customers/{customer.id}/cards/{card.id}",
+            f"/api/customers/{customer.id}/cards/{card.id}",
             json={"is_archived": True},
         )
 
@@ -172,7 +176,7 @@ class TestUpdateCard:
         mock_session.get.return_value = None
 
         response = await client.patch(
-            f"/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}",
+            f"/api/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}",
             json={"is_archived": False},
         )
 
@@ -184,7 +188,7 @@ class TestUpdateCard:
         mock_session.get.side_effect = [customer, None]
 
         response = await client.patch(
-            f"/customers/{customer.id}/cards/{uuid.uuid4()}",
+            f"/api/customers/{customer.id}/cards/{uuid.uuid4()}",
             json={"is_archived": False},
         )
 
@@ -199,7 +203,7 @@ class TestUpdateCard:
         mock_session.get.side_effect = [customer, card]
 
         response = await client.patch(
-            f"/customers/{customer.id}/cards/{card.id}",
+            f"/api/customers/{customer.id}/cards/{card.id}",
             json={"is_archived": False},
         )
 
@@ -217,7 +221,9 @@ class TestRedeemCard:
             customer_id=customer.id, total_credits=5, credits_used=0, is_archived=False
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/redeem"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -232,7 +238,9 @@ class TestRedeemCard:
             customer_id=customer.id, total_credits=5, credits_used=5, is_archived=False
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/redeem"
+        )
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Card has no remaining credits"
@@ -244,11 +252,34 @@ class TestRedeemCard:
             customer_id=customer.id, total_credits=5, credits_used=0, is_archived=True
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/redeem")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/redeem"
+        )
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Card is archived and cannot be redeemed"
         mock_session.commit.assert_not_called()
+
+    async def test_redeem_returns_404_for_unknown_customer(self, client, mock_session):
+        mock_session.get.return_value = None
+
+        response = await client.post(
+            f"/api/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}/redeem"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Customer not found"
+
+    async def test_redeem_returns_404_for_unknown_card(self, client, mock_session):
+        customer = make_customer()
+        mock_session.get.side_effect = [customer, None]
+
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{uuid.uuid4()}/redeem"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Card not found"
 
 
 class TestRefundCard:
@@ -262,7 +293,9 @@ class TestRefundCard:
             customer_id=customer.id, total_credits=5, credits_used=5, is_archived=False
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/refund"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -277,7 +310,9 @@ class TestRefundCard:
             customer_id=customer.id, total_credits=5, credits_used=0, is_archived=False
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/refund"
+        )
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Card has no used credits to refund"
@@ -289,8 +324,31 @@ class TestRefundCard:
             customer_id=customer.id, total_credits=5, credits_used=5, is_archived=True
         )
         mock_session.get.side_effect = [customer, card]
-        response = await client.post(f"/customers/{customer.id}/cards/{card.id}/refund")
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{card.id}/refund"
+        )
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Card is archived and cannot be refunded"
         mock_session.commit.assert_not_called()
+
+    async def test_refund_returns_404_for_unknown_customer(self, client, mock_session):
+        mock_session.get.return_value = None
+
+        response = await client.post(
+            f"/api/customers/{uuid.uuid4()}/cards/{uuid.uuid4()}/refund"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Customer not found"
+
+    async def test_refund_returns_404_for_unknown_card(self, client, mock_session):
+        customer = make_customer()
+        mock_session.get.side_effect = [customer, None]
+
+        response = await client.post(
+            f"/api/customers/{customer.id}/cards/{uuid.uuid4()}/refund"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Card not found"

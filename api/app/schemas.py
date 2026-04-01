@@ -13,6 +13,13 @@ EXAMPLE_CARD_RESPONSE = {
 }
 
 
+class CustomerCreateRequest(BaseModel):
+    """Fields required to register a new customer."""
+
+    name: str
+    email: EmailStr | None = None
+
+
 class CustomerUpdateRequest(BaseModel):
     """Fields that can be updated on an existing customer. All fields are optional."""
 

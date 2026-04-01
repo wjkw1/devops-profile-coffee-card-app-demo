@@ -16,7 +16,7 @@ FastAPI backend for the Coffee Card concession kiosk.
 
 ## Project Layout
 
-```
+```text
 api/
 ├── app/
 │   ├── main.py           # FastAPI app — includes routers
@@ -105,8 +105,8 @@ OpenAPI docs are auto-generated at `http://localhost:8000/docs`.
 ### Verify
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/customers/11111111-1111-1111-1111-111111111111
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/customers/11111111-1111-1111-1111-111111111111
 ```
 
 ## Running Tests
@@ -142,41 +142,41 @@ pytest tests/test_customers.py::TestUpdateCustomer
 
 ### Customers
 
-| Method | Path                       | Status | Notes                                   |
-| ------ | -------------------------- | ------ | --------------------------------------- |
-| GET    | `/customers`               | Done   | `?include=archived` to include archived |
-| POST   | `/customers`               | Done   |                                         |
-| GET    | `/customers/{customer_id}` | Done   |                                         |
-| PATCH  | `/customers/{customer_id}` | Done   | Updates name, email, or `is_archived`   |
-| DELETE | `/customers/{customer_id}` | Done   | Will soft-delete via `is_archived`      |
+| Method | Path                           | Status | Notes                                                      |
+| ------ | ------------------------------ | ------ | ---------------------------------------------------------- |
+| GET    | `/api/customers`               | Done   | `?search=` partial name match; `?include=archived` for all |
+| POST   | `/api/customers`               | Done   | Body: `{ name, email? }`                                   |
+| GET    | `/api/customers/{customer_id}` | Done   |                                                            |
+| PATCH  | `/api/customers/{customer_id}` | Done   | Updates name, email, or `is_archived`                      |
+| DELETE | `/api/customers/{customer_id}` | Done   | Soft-archives; returns updated customer                    |
 
 ### Cards
 
-| Method | Path                                       | Status | Notes                                   |
-| ------ | ------------------------------------------ | ------ | --------------------------------------- |
-| GET    | `/customers/{customer_id}/cards`           | Done   | `?include=archived` to include archived |
-| POST   | `/customers/{customer_id}/cards`           | Done   | Creates card with 5 credits             |
-| PATCH  | `/customers/{customer_id}/cards/{card_id}` | Done   | Updates `is_archived`                   |
-| DELETE | `/customers/{customer_id}/cards/{card_id}` | Done   | Soft-delete via `is_archived`           |
+| Method | Path                                           | Status | Notes                                   |
+| ------ | ---------------------------------------------- | ------ | --------------------------------------- |
+| GET    | `/api/customers/{customer_id}/cards`           | Done   | `?include=archived` to include archived |
+| POST   | `/api/customers/{customer_id}/cards`           | Done   | Creates card with 5 credits             |
+| PATCH  | `/api/customers/{customer_id}/cards/{card_id}` | Done   | Updates `is_archived`                   |
+| DELETE | `/api/customers/{customer_id}/cards/{card_id}` | Done   | Soft-delete via `is_archived`           |
 
 ### Actions
 
-| Method | Path                                              | Status | Notes                          |
-| ------ | ------------------------------------------------- | ------ | ------------------------------ |
-| POST   | `/customers/{customer_id}/cards/{card_id}/redeem` | Done   | Increments `credits_used` by 1 |
-| POST   | `/customers/{customer_id}/cards/{card_id}/refund` | Done   | Decrements `credits_used` by 1 |
+| Method | Path                                                  | Status | Notes                          |
+| ------ | ----------------------------------------------------- | ------ | ------------------------------ |
+| POST   | `/api/customers/{customer_id}/cards/{card_id}/redeem` | Done   | Increments `credits_used` by 1 |
+| POST   | `/api/customers/{customer_id}/cards/{card_id}/refund` | Done   | Decrements `credits_used` by 1 |
 
 ### Health
 
-| Method | Path      | Status |
-| ------ | --------- | ------ |
-| GET    | `/health` | Done   |
+| Method | Path          | Status | Notes                                                   |
+| ------ | ------------- | ------ | ------------------------------------------------------- |
+| GET    | `/api/health` | Done   | Returns `version`, `uptime_seconds`, `database` status  |
 
 ## Key Decisions
 
-### No route prefix
+### `/api` route prefix
 
-Routes are mounted directly without a prefix in `main.py`. Individual routers remain unaware of any prefix, making them easy to test in isolation and straightforward to add a prefix later (e.g. `/v2`) without touching router files.
+All routers are mounted with `prefix="/api"` in `main.py`. Individual routers remain unaware of the prefix — it is applied at registration, not inside the router file, making it straightforward to change (e.g. to `/v2`) without touching router files.
 
 ### Migrations run on container boot
 
@@ -207,6 +207,14 @@ The builder stage installs `gcc` and `libpq-dev` (needed to compile asyncpg). Th
 ### `selectinload` for cards
 
 `GET /customers/{customer_id}` uses `selectinload(Customer.cards)` rather than a join. This issues two queries (one for the customer, one for cards) instead of a join that would return a row per card. For this access pattern — one customer, a handful of cards — two small queries are cleaner and avoid duplicated customer columns in the result set.
+
+### CORS
+
+`CORSMiddleware` is configured in `main.py` with `allow_origins` set to the frontend origin. In local development this is `http://localhost:5173` (the default Vite dev server port). Update `allow_origins` when deploying to a different domain.
+
+### Card ordering
+
+Cards are returned in `created_at ASC, id ASC` order, enforced at the relationship level in `models.py` via `order_by=[text("cards.created_at"), text("cards.id")]`. The secondary `id` sort is a stable tiebreaker for cards created within the same transaction. Ordering at the model layer means it applies consistently across all query paths without needing an explicit `ORDER BY` in each router.
 
 ### `is_archived` soft-delete
 
