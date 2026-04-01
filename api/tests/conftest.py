@@ -13,8 +13,8 @@ from app.database import get_session
 from app.main import app
 from app.models import Card, Customer
 
-
 # --- Factories ---
+
 
 def make_customer(**kwargs) -> Customer:
     now = datetime.now(timezone.utc)
@@ -44,6 +44,7 @@ def make_card(customer_id: uuid.UUID = None, **kwargs) -> Card:
 
 # --- Execute result helpers ---
 
+
 def scalars_all(rows: list) -> MagicMock:
     """Mock result for session.execute() calls that use .scalars().all()."""
     mock = MagicMock()
@@ -60,10 +61,12 @@ def scalar_one_or_none(row) -> MagicMock:
 
 # --- Fixtures ---
 
+
 @pytest.fixture
 def mock_session():
     session = AsyncMock()
-    # session.add() is synchronous in SQLAlchemy — prevent "coroutine never awaited" warning
+    # session.add() is synchronous in SQLAlchem
+    # — prevent "coroutine never awaited" warning
     session.add = MagicMock()
 
     # Simulate DB applying server-side defaults (server_default) on refresh
@@ -90,6 +93,8 @@ async def client(mock_session):
         yield mock_session
 
     app.dependency_overrides[get_session] = override_get_session
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
         yield c
     app.dependency_overrides.clear()

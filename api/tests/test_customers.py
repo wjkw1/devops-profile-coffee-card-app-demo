@@ -1,7 +1,5 @@
 import uuid
 
-import pytest
-
 from tests.conftest import make_card, make_customer, scalar_one_or_none, scalars_all
 
 

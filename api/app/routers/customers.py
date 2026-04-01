@@ -51,9 +51,7 @@ async def get_customer(
     Use `?include=archived` to include archived cards.
     """
     result = await session.execute(
-        select(Customer)
-        .where(Customer.id == customer_id)
-        .options(_cards_load(include))
+        select(Customer).where(Customer.id == customer_id).options(_cards_load(include))
     )
     customer = result.scalar_one_or_none()
     if not customer:
