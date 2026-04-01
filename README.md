@@ -28,6 +28,20 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 6. **Health Check Endpoint**
    A /health route returning app version, uptime, and database connectivity. Small effort, but essential for ECS task health checks and demonstrates operational awareness.
 
+## Getting started - Local Dev
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Docker Compose](https://docs.docker.com/compose/install/), [pnpm](https://pnpm.io/installation)
+
+| Command     | Does                                                       |
+| ----------- | ---------------------------------------------------------- |
+| `make dev`  | Starts db + api in background, runs frontend in foreground |
+| `make down` | Stops all Docker services                                  |
+| `make seed` | Seeds sample data                                          |
+
+The frontend is available at `http://localhost:5173`, the API at `http://localhost:8000`.
+
+Copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE_URL=http://localhost:8000` before running `make dev`.
+
 ## Data Models
 
 ### Customer
@@ -55,33 +69,33 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 
 ### Customers
 
-| Method | Path                     | Description                               |
-| ------ | ------------------------ | ----------------------------------------- |
-| GET    | /customers               | List customers (supports `?name=` filter) |
-| POST   | /customers               | Register a new customer                   |
-| GET    | /customers/{customer_id} | View customer status with active cards    |
-| PATCH  | /customers/{customer_id} | Update customer details                   |
-| DELETE | /customers/{customer_id} | Soft-delete (set archive flag)            |
+| Method | Path                         | Description                               |
+| ------ | ---------------------------- | ----------------------------------------- |
+| GET    | /api/customers               | List customers (supports `?name=` filter) |
+| POST   | /api/customers               | Register a new customer                   |
+| GET    | /api/customers/{customer_id} | View customer status with active cards    |
+| PATCH  | /api/customers/{customer_id} | Update customer details                   |
+| DELETE | /api/customers/{customer_id} | Soft-delete (set archive flag)            |
 
 ### Cards
 
-| Method | Path                           | Description           |
-| ------ | ------------------------------ | --------------------- |
-| GET    | /customers/{customer_id}/cards | List customer's cards |
-| POST   | /customers/{customer_id}/cards | Purchase a new card   |
+| Method | Path                               | Description           |
+| ------ | ---------------------------------- | --------------------- |
+| GET    | /api/customers/{customer_id}/cards | List customer's cards |
+| POST   | /api/customers/{customer_id}/cards | Purchase a new card   |
 
 ### Actions
 
-| Method | Path                                            | Description   |
-| ------ | ----------------------------------------------- | ------------- |
-| POST   | /customers/{customer_id}/cards/{card_id}/redeem | Tick a box    |
-| POST   | /customers/{customer_id}/cards/{card_id}/refund | Un-tick a box |
+| Method | Path                                                | Description   |
+| ------ | --------------------------------------------------- | ------------- |
+| POST   | /api/customers/{customer_id}/cards/{card_id}/redeem | Tick a box    |
+| POST   | /api/customers/{customer_id}/cards/{card_id}/refund | Un-tick a box |
 
 ### Health
 
-| Method | Path    | Description                          |
-| ------ | ------- | ------------------------------------ |
-| GET    | /health | App version, uptime, DB connectivity |
+| Method | Path        | Description                          |
+| ------ | ----------- | ------------------------------------ |
+| GET    | /api/health | App version, uptime, DB connectivity |
 
 ## Business Rules
 
