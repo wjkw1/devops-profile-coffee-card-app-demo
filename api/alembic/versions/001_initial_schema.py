@@ -39,9 +39,7 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("customer_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("total_credits", sa.Integer(), nullable=False, server_default="5"),
-        sa.Column(
-            "credits_used", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("credits_used", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("is_archived", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column(
             "created_at",

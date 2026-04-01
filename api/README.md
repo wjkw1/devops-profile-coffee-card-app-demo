@@ -60,6 +60,32 @@ Then in VS Code, open the Command Palette (`Cmd+Shift+P`) → **Python: Select I
 
 The `.venv` directory is already in `.gitignore`.
 
+## Linting
+
+Ruff is used for both linting and formatting. It runs automatically on commit via pre-commit.
+
+### Install pre-commit hooks
+
+From the **repo root** (not `api/`):
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+This installs hooks that run `ruff` (lint + autofix) and `ruff-format` on every `git commit`.
+
+### Run manually
+
+```bash
+# Check all files
+pre-commit run --all-files
+
+# Ruff only
+pre-commit run ruff --all-files
+pre-commit run ruff-format --all-files
+```
+
 ## Running Locally
 
 **Prerequisites:** Docker + Docker Compose.
