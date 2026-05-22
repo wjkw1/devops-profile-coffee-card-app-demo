@@ -1,136 +1,125 @@
 from uuid import UUID
 
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_session
+from app.database import CoffeeCardRepository, get_repository
 from app.models import Card, Customer
 from app.schemas import CardResponse, CardUpdateRequest
 
 router = APIRouter(prefix="/customers/{customer_id}/cards", tags=["cards"])
 
 
+def _get_active_customer(customer_id: UUID, repo: CoffeeCardRepository) -> Customer:
+    customer = repo.get_customer(customer_id)
+    if not customer or customer.is_archived:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+def _get_card(customer_id: UUID, card_id: UUID, repo: CoffeeCardRepository) -> Card:
+    card = repo.get_card(customer_id, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return card
+
+
 @router.get("", response_model=list[CardResponse])
-async def get_cards(
+def get_cards(
     customer_id: UUID,
     include: list[str] = Query(default=[]),
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Return all active cards belonging to the given customer.
 
     Use `?include=archived` to include archived cards as well.
     """
-    customer = await session.get(Customer, customer_id)
+    include_archived = "archived" in include
+    customer, cards = repo.get_customer_with_cards(
+        customer_id, include_archived=include_archived
+    )
     if not customer or customer.is_archived:
         raise HTTPException(status_code=404, detail="Customer not found")
-
-    query = select(Card).where(Card.customer_id == customer_id)
-    if "archived" not in include:
-        query = query.where(Card.is_archived.is_(False))
-
-    result = await session.execute(query)
-    return result.scalars().all()
+    return [CardResponse(**c.model_dump()) for c in cards]
 
 
 @router.post("", response_model=CardResponse, status_code=201)
-async def purchase_card(
-    customer_id: UUID, session: AsyncSession = Depends(get_session)
+def purchase_card(
+    customer_id: UUID,
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Purchase a new loyalty card with 5 credits for the given customer."""
-    customer = await session.get(Customer, customer_id)
-    if not customer or customer.is_archived:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
+    _get_active_customer(customer_id, repo)
     card = Card(customer_id=customer_id)
-    session.add(card)
-    await session.commit()
-    await session.refresh(card)
-    return card
+    repo.put_card(card)
+    return CardResponse(**card.model_dump())
 
 
 @router.delete("/{card_id}", status_code=204)
-async def archive_card(
-    customer_id: UUID, card_id: UUID, session: AsyncSession = Depends(get_session)
+def archive_card(
+    customer_id: UUID,
+    card_id: UUID,
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Archive a loyalty card, excluding it from active card listings."""
-    customer = await session.get(Customer, customer_id)
-    if not customer or customer.is_archived:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    card = await session.get(Card, card_id)
-    if not card or card.customer_id != customer_id:
-        raise HTTPException(status_code=404, detail="Card not found")
-
+    _get_active_customer(customer_id, repo)
+    card = _get_card(customer_id, card_id, repo)
     card.is_archived = True
-    await session.commit()
+    repo.put_card(card)
 
 
 @router.patch("/{card_id}", response_model=CardResponse)
-async def update_card(
+def update_card(
     customer_id: UUID,
     card_id: UUID,
     body: CardUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Update one or more fields on an existing card.
 
     Set `is_archived: false` to restore an archived card.
     """
-    customer = await session.get(Customer, customer_id)
-    if not customer or customer.is_archived:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    card = await session.get(Card, card_id)
-    if not card or card.customer_id != customer_id:
-        raise HTTPException(status_code=404, detail="Card not found")
-
+    _get_active_customer(customer_id, repo)
+    card = _get_card(customer_id, card_id, repo)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(card, field, value)
-
-    await session.commit()
-    await session.refresh(card)
-    return card
+    repo.put_card(card)
+    return CardResponse(**card.model_dump())
 
 
-@router.post("/{card_id}/redeem", status_code=200)
-async def redeem_card(
-    customer_id: UUID, card_id: UUID, session: AsyncSession = Depends(get_session)
+@router.post("/{card_id}/redeem", response_model=CardResponse)
+def redeem_card(
+    customer_id: UUID,
+    card_id: UUID,
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Redeem a loyalty card, decrementing its credit balance."""
-    customer = await session.get(Customer, customer_id)
-    if not customer or customer.is_archived:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    card = await session.get(Card, card_id)
-    if not card or card.customer_id != customer_id:
-        raise HTTPException(status_code=404, detail="Card not found")
-
+    _get_active_customer(customer_id, repo)
+    card = _get_card(customer_id, card_id, repo)
     if card.is_archived:
         raise HTTPException(
             status_code=400, detail="Card is archived and cannot be redeemed"
         )
     if card.credits_used >= card.total_credits:
         raise HTTPException(status_code=400, detail="Card has no remaining credits")
-    card.credits_used += 1
-    await session.commit()
-    return card
+    try:
+        updated = repo.redeem_credits(card)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise HTTPException(status_code=409, detail="Card has no remaining credits")
+        raise
+    return CardResponse(**updated.model_dump())
 
 
-@router.post("/{card_id}/refund", status_code=200)
-async def refund_card(
-    customer_id: UUID, card_id: UUID, session: AsyncSession = Depends(get_session)
+@router.post("/{card_id}/refund", response_model=CardResponse)
+def refund_card(
+    customer_id: UUID,
+    card_id: UUID,
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Refund a loyalty card, incrementing its credit balance."""
-
-    customer = await session.get(Customer, customer_id)
-    if not customer or customer.is_archived:
-        raise HTTPException(status_code=404, detail="Customer not found")
-
-    card = await session.get(Card, card_id)
-    if not card or card.customer_id != customer_id:
-        raise HTTPException(status_code=404, detail="Card not found")
-
+    _get_active_customer(customer_id, repo)
+    card = _get_card(customer_id, card_id, repo)
     if card.is_archived:
         raise HTTPException(
             status_code=400, detail="Card is archived and cannot be refunded"
@@ -139,6 +128,12 @@ async def refund_card(
         raise HTTPException(
             status_code=400, detail="Card has no used credits to refund"
         )
-    card.credits_used -= 1
-    await session.commit()
-    return card
+    try:
+        updated = repo.refund_credits(card)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise HTTPException(
+                status_code=409, detail="Card has no used credits to refund"
+            )
+        raise
+    return CardResponse(**updated.model_dump())
