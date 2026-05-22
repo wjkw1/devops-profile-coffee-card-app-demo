@@ -1,27 +1,32 @@
 import time
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import get_session
+from app.database import CoffeeCardRepository, get_repository
+from app.settings import get_settings
+
+settings = get_settings()
 
 router = APIRouter(tags=["health"])
 
 _START_TIME = time.time()
-APP_VERSION = "0.1.0"
+APP_VERSION = settings.app_version
 
 
 @router.get("/health")
-async def health(session: AsyncSession = Depends(get_session)):
-    try:
-        await session.execute(text("SELECT 1"))
-        db_status = "ok"
-    except Exception:
-        db_status = "error"
-
-    return {
+def health(repo: CoffeeCardRepository = Depends(get_repository)):
+    health_data = {
         "version": APP_VERSION,
         "uptime_seconds": round(time.time() - _START_TIME),
-        "database": db_status,
     }
+    try:
+        repo.describe_table()
+        health_data["database"] = "ok"
+        return health_data
+    except (BotoCoreError, ClientError) as exc:
+        health_data["database"] = "error"
+        raise HTTPException(
+            status_code=503,
+            detail=health_data,
+        ) from exc

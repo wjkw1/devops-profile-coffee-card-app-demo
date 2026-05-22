@@ -1,14 +1,14 @@
 .PHONY: dev down seed
 
 dev:
-	docker compose up -d db api
+	docker compose up -d --build
 	pnpm --prefix frontend dev
 
 down:
 	docker compose down
 
 seed:
-	docker compose --profile seed run --rm seed
+	docker exec api python seed.py
 
 logs:
 	docker compose logs -f api

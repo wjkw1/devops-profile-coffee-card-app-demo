@@ -1,117 +1,104 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.database import get_session
+from app.database import CoffeeCardRepository, get_repository
 from app.models import Card, Customer
-from app.schemas import CustomerCreateRequest, CustomerResponse, CustomerUpdateRequest
+from app.schemas import (
+    CardResponse,
+    CustomerCreateRequest,
+    CustomerResponse,
+    CustomerUpdateRequest,
+)
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 
-def _cards_load(include: list[str]):
-    """Return a selectinload option for cards, filtered by archive status."""
-    if "archived" in include:
-        return selectinload(Customer.cards)
-    return selectinload(Customer.cards.and_(Card.is_archived.is_(False)))
+def _to_response(
+    customer: Customer, cards: list[Card] | None = None
+) -> CustomerResponse:
+    return CustomerResponse(
+        **customer.model_dump(),
+        cards=[CardResponse(**c.model_dump()) for c in (cards or [])],
+    )
 
 
 @router.get("", response_model=list[CustomerResponse])
-async def get_customers(
+def get_customers(
     include: list[str] = Query(default=[]),
     search: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Return all customers with their associated active loyalty cards.
 
     Use `?include=archived` to include archived customers and their archived cards.
     Use `?search=` to filter customers by name (case-insensitive partial match).
     """
-    query = select(Customer).options(_cards_load(include))
-
-    if "archived" not in include:
-        query = query.where(Customer.is_archived.is_(False))
-
-    if search:
-        query = query.where(Customer.name.ilike(f"%{search}%"))
-
-    result = await session.execute(query)
-    return result.scalars().all()
+    include_archived = "archived" in include
+    pairs = repo.list_customers_with_cards(
+        include_archived=include_archived, search=search
+    )
+    return [_to_response(customer, cards) for customer, cards in pairs]
 
 
 @router.post("", response_model=CustomerResponse, status_code=201)
-async def create_customer(
+def create_customer(
     body: CustomerCreateRequest,
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Register a new customer."""
     customer = Customer(name=body.name, email=body.email)
-    session.add(customer)
-    await session.commit()
-    await session.refresh(customer, attribute_names=["cards"])
-    return customer
+    repo.put_customer(customer)
+    return _to_response(customer)
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
-async def get_customer(
+def get_customer(
     customer_id: UUID,
     include: list[str] = Query(default=[]),
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
-    """Return a single customer with their associated active cards.
+    """Return a single customer with their associated cards.
 
     Use `?include=archived` to include archived cards.
     """
-    result = await session.execute(
-        select(Customer).where(Customer.id == customer_id).options(_cards_load(include))
+    include_archived = "archived" in include
+    customer, cards = repo.get_customer_with_cards(
+        customer_id, include_archived=include_archived
     )
-    customer = result.scalar_one_or_none()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    return customer
+    return _to_response(customer, cards)
 
 
 @router.delete("/{customer_id}", response_model=CustomerResponse)
-async def archive_customer(
+def archive_customer(
     customer_id: UUID,
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Archive a customer, excluding them from active customer listings."""
-    customer = await session.get(Customer, customer_id)
+    customer = repo.get_customer(customer_id)
     if not customer or customer.is_archived:
         raise HTTPException(status_code=404, detail="Customer not found")
-
     customer.is_archived = True
-    await session.commit()
-    await session.refresh(customer, attribute_names=["cards"])
-    return customer
+    repo.put_customer(customer)
+    return _to_response(customer)
 
 
 @router.patch("/{customer_id}", response_model=CustomerResponse)
-async def update_customer(
+def update_customer(
     customer_id: UUID,
     body: CustomerUpdateRequest,
-    session: AsyncSession = Depends(get_session),
+    repo: CoffeeCardRepository = Depends(get_repository),
 ):
     """Update one or more fields on an existing customer.
 
     Set `is_archived: false` to restore an archived customer.
     """
-    result = await session.execute(
-        select(Customer)
-        .where(Customer.id == customer_id)
-        .options(selectinload(Customer.cards))
-    )
-    customer = result.scalar_one_or_none()
+    customer, cards = repo.get_customer_with_cards(customer_id, include_archived=True)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(customer, field, value)
-
-    await session.commit()
-    await session.refresh(customer, attribute_names=["cards"])
-    return customer
+    repo.put_customer(customer)
+    return _to_response(customer, cards)
