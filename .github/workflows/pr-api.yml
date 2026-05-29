@@ -54,11 +54,28 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run tests with coverage
-        run: pytest
+        run: pytest --cov-fail-under=70
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: api/coverage.xml
           retention-days: 3
+          if-no-files-found: warn
+    
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # docker build container, to check it builds upstream
+      # cache the build and push on merge
+      # docker push container to ECR ??
