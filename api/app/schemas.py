@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -11,6 +12,14 @@ EXAMPLE_CARD_RESPONSE = {
     "is_archived": False,
     "created_at": "2026-01-15T10:30:00Z",
 }
+
+
+class HealthResponse(BaseModel):
+    """Health check response returned for both 200 OK and 503 Service Unavailable."""
+
+    version: str
+    uptime_seconds: int
+    database: Literal["ok", "error"]
 
 
 class CustomerCreateRequest(BaseModel):

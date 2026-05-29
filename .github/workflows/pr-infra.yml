@@ -1,0 +1,124 @@
+name: PR Infra CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    if: vars.DEPLOY_INFRASTRUCTURE == 'true'
+
+    defaults:
+      run:
+        working-directory: infra
+    
+    env:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/github-actions-tf-plan-devops-profile-coffee-card-app-demo
+          aws-region: ap-southeast-2
+      - run: |
+          # Check our AWS credentials
+          aws sts get-caller-identity
+      
+      - uses: hashicorp/setup-terraform@v4
+
+      - name: Initialise Terraform
+        id: init
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -input=false
+
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: true
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -input=false | sed "s/${AWS_ACCOUNT_ID}/<account-id>/g" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - uses: actions/github-script@v9
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN_OUTPUT: "terraform\n${{ steps.plan.outputs.stdout }}"
+          VALIDATE_OUTPUT: ${{ steps.validate.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+
+            const rawPlan = process.env.PLAN_OUTPUT
+            const validatedOutput = process.env.VALIDATE_OUTPUT
+
+            const accountId = process.env.AWS_ACCOUNT_ID
+            const sanitizedPlan = rawPlan.replaceAll(accountId, '<account-id>')
+
+            const maxLength = 60000
+            const truncatedPlan = sanitizedPlan.length > maxLength
+              ? sanitizedPlan.substring(0, maxLength) + '\n\n> Plan truncated - see full output in Actions logs.'
+              : sanitizedPlan
+
+            
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+            })
+
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${validatedOutput}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${truncatedPlan}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`infra\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }

@@ -3,16 +3,13 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.logging_config import configure_logging
 from app.middlewares import RequestLoggingMiddleware
 from app.routers import cards, customers, health
 from app.settings import get_settings
 
 settings = get_settings()
-
-logging.basicConfig(
-    level=settings.log_level,
-    format=settings.log_format,
-)
+configure_logging(settings)
 
 logger = logging.getLogger(__name__)
 

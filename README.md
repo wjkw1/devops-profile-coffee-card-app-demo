@@ -4,6 +4,8 @@ A functional coffee concession card app designed to demonstrate serverless deplo
 
 AWS services: Lambda + API Gateway + DynamoDB + S3 + CloudFront
 
+In GitHub, set the `DEPLOY_INFRASTRUCTURE` environment variable to `true` for infrastructure to deploy via github actions.
+
 ## Purpose
 
 An end-to-end showcase of:
@@ -19,7 +21,7 @@ A salesperson operates a kiosk-style dashboard. They register walk-up customers,
 
 ## Architecture
 
-See more about this diagram methodology: [C4 Models](https://c4models.com)
+See more about the C4 Models diagram methodology: [C4 Models](https://c4models.com)
 
 ### System Context
 
@@ -27,9 +29,9 @@ See more about this diagram methodology: [C4 Models](https://c4models.com)
 
 ### Container
 
-TODO Update this diagram
-
 > ![C4 Container Diagram](diagrams/Coffee%20Cards%20C4%20-%20Container%20v2.jpg)
+
+See more about this diagram methodology: [C4 Models](https://c4models.com)
 
 ## Tech Stack
 
