@@ -6,6 +6,7 @@ output "api_url" {
 output "ecr_repository_url" {
   description = "ECR repository URL. Push Docker images here for Lambda"
   value       = aws_ecr_repository.api.repository_url
+  sensitive   = true
 }
 
 output "lambda_function_name" {

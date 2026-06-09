@@ -69,7 +69,7 @@ resource "aws_iam_role_policy" "authorizer_ssm" {
 # ─── Authorizer Lambda Function ───────────────────────────────────────────────
 
 resource "aws_lambda_function" "authorizer" {
-  function_name    = "${var.app_name}-${var.environment}-authorizer"
+  function_name    = "${var.app_name}-api-${var.environment}-authorizer"
   role             = aws_iam_role.authorizer.arn
   filename         = data.archive_file.authorizer.output_path
   source_code_hash = data.archive_file.authorizer.output_base64sha256
@@ -83,7 +83,7 @@ resource "aws_lambda_function" "authorizer" {
   }
 
   tags = {
-    Name        = "${var.app_name}-${var.environment}-authorizer"
+    Name        = "${var.app_name}-api-${var.environment}-authorizer"
     Environment = var.environment
   }
 }
