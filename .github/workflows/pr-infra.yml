@@ -9,6 +9,10 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     if: vars.DEPLOY_INFRASTRUCTURE == 'true'
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
 
     defaults:
       run:
@@ -48,7 +52,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color -input=false
+        run: terraform plan -no-color -input=false -var-file=prod.tfvars
         continue-on-error: true
 
       - uses: actions/github-script@v9
