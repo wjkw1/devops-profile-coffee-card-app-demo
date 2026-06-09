@@ -1,0 +1,58 @@
+name: Deploy API
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - "api/**"
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      # Build from main's tip (the merge has already landed by the time this
+      # runs), not the PR ref - this is the code that's actually shipping.
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deploy-devops-profile-coffee-card-app-demo
+          aws-region: ap-southeast-2
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Include the run id so a rerun (e.g. push succeeded but the deploy step
+      # below failed) doesn't collide with an already-pushed immutable tag.
+      - name: Build and push Docker image
+        id: build-push
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: coffee-card-api
+        run: |
+          IMAGE_TAG="main-$(git rev-parse --short HEAD)-${{ github.run_id }}-${{ github.run_attempt }}"
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Lambda
+        env:
+          IMAGE_URI: ${{ steps.build-push.outputs.image }}
+        run: |
+          aws lambda update-function-code \
+            --function-name coffee-card-api-prod \
+            --image-uri "$IMAGE_URI"

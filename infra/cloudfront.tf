@@ -70,7 +70,8 @@ data "aws_iam_policy_document" "frontend_bucket" {
 # Shared destination for CloudFront standard logs and S3 server access logs.
 
 resource "aws_s3_bucket" "logs" {
-  bucket = "${var.app_name}-logs-${var.environment}"
+  bucket        = "${var.app_name}-logs-${var.environment}"
+  force_destroy = true
 
   tags = {
     Name        = "${var.app_name}-logs-${var.environment}"
