@@ -15,6 +15,12 @@ variable "environment" {
   type        = string
 }
 
+variable "api_key" {
+  description = "API key callers must supply in the x-api-key header. Never hardcode — pass via TF_VAR_api_key or -var in CI/CD."
+  type        = string
+  sensitive   = true
+}
+
 variable "cors_allow_origins" {
   description = "Allowed CORS origins for the API Gateway"
   type        = list(string)

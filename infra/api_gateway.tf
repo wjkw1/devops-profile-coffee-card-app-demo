@@ -31,9 +31,11 @@ resource "aws_apigatewayv2_integration" "lambda" {
 
 # Catch-all route, FastAPI handles routing internally via Mangum
 resource "aws_apigatewayv2_route" "default" {
-  api_id    = aws_apigatewayv2_api.this.id
-  route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  api_id             = aws_apigatewayv2_api.this.id
+  route_key          = "$default"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.api_key.id
 }
 
 resource "aws_apigatewayv2_stage" "default" {

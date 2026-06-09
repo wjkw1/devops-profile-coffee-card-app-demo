@@ -169,7 +169,7 @@ See [api/README.md](api/README.md) for API implementation details, design decisi
 ## Out of Scope for V1
 
 - Customer-facing UI or self-service
-- Authentication and authorization
+- Authentication and authorization (I'd look at Cognito + JWT authorization for a productionised system)
 - QR codes or physical card integration
 - Per-redemption audit trail
 - Fuzzy search
