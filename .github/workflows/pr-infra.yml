@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "infra/**"
+      - ".github/workflows/pr-infra.yml"
 
 jobs:
   plan:
@@ -17,7 +18,7 @@ jobs:
     defaults:
       run:
         working-directory: infra
-    
+
     env:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
@@ -32,7 +33,7 @@ jobs:
       - run: |
           # Check our AWS credentials
           aws sts get-caller-identity
-      
+
       - uses: hashicorp/setup-terraform@v4
 
       - name: Initialise Terraform
@@ -75,7 +76,7 @@ jobs:
               ? sanitizedPlan.substring(0, maxLength) + '\n\n> Plan truncated - see full output in Actions logs.'
               : sanitizedPlan
 
-            
+
             // 1. Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -126,3 +127,7 @@ jobs:
                 body: output
               })
             }
+
+      - name: Fail job if Terraform Plan errored
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
