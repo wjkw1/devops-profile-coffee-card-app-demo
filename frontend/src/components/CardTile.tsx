@@ -41,28 +41,40 @@ function CardTile({
     }
   }
 
-  const archive = () => run(() =>
-    api(`/api/customers/${customer_id}/cards/${card_id}`, { method: 'DELETE' }).then(() => {})
-  )
+  const archive = () =>
+    run(() =>
+      api(`/api/customers/${customer_id}/cards/${card_id}`, {
+        method: 'DELETE',
+      }).then(() => {})
+    )
 
-  const restore = () => run(() =>
-    api(`/api/customers/${customer_id}/cards/${card_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_archived: false }),
-    }).then(() => {})
-  )
+  const restore = () =>
+    run(() =>
+      api(`/api/customers/${customer_id}/cards/${card_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_archived: false }),
+      }).then(() => {})
+    )
 
-  const redeem = () => run(() =>
-    api(`/api/customers/${customer_id}/cards/${card_id}/redeem`, { method: 'POST' }).then(() => {})
-  )
+  const redeem = () =>
+    run(() =>
+      api(`/api/customers/${customer_id}/cards/${card_id}/redeem`, {
+        method: 'POST',
+      }).then(() => {})
+    )
 
-  const refund = () => run(() =>
-    api(`/api/customers/${customer_id}/cards/${card_id}/refund`, { method: 'POST' }).then(() => {})
-  )
+  const refund = () =>
+    run(() =>
+      api(`/api/customers/${customer_id}/cards/${card_id}/refund`, {
+        method: 'POST',
+      }).then(() => {})
+    )
 
   const formattedDate = new Date(created_at).toLocaleDateString('en-AU', {
-    day: 'numeric', month: 'short', year: 'numeric',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   })
 
   if (is_archived) {
@@ -70,10 +82,15 @@ function CardTile({
       <div className="border rounded p-3 flex flex-col gap-2 bg-gray-50 opacity-60">
         <div className="flex flex-wrap gap-1">
           {Array.from({ length: total_credits }).map((_, i) => (
-            <span key={i} className={`w-4 h-4 rounded-full border ${i < credits_used ? 'bg-gray-400 border-gray-400' : 'bg-white border-gray-300'}`} />
+            <span
+              key={i}
+              className={`w-4 h-4 rounded-full border ${i < credits_used ? 'bg-gray-400 border-gray-400' : 'bg-white border-gray-300'}`}
+            />
           ))}
         </div>
-        <p className="text-xs text-gray-400">{credits_used}/{total_credits} used</p>
+        <p className="text-xs text-gray-400">
+          {credits_used}/{total_credits} used
+        </p>
         <button
           onClick={restore}
           className="text-xs py-1 px-2 border rounded hover:bg-white transition-colors text-gray-500"
@@ -87,11 +104,16 @@ function CardTile({
   }
 
   return (
-    <div className={`border rounded p-3 flex flex-col gap-2 ${isFullyRedeemed ? 'bg-green-50' : 'bg-white'}`}>
+    <div
+      className={`border rounded p-3 flex flex-col gap-2 ${isFullyRedeemed ? 'bg-green-50' : 'bg-white'}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap gap-1">
           {Array.from({ length: total_credits }).map((_, i) => (
-            <span key={i} className={`w-4 h-4 rounded-full border ${i < credits_used ? 'bg-[#3C3489] border-[#3C3489]' : 'bg-white border-gray-300'}`} />
+            <span
+              key={i}
+              className={`w-4 h-4 rounded-full border ${i < credits_used ? 'bg-[#3C3489] border-[#3C3489]' : 'bg-white border-gray-300'}`}
+            />
           ))}
         </div>
         <button
@@ -99,7 +121,16 @@ function CardTile({
           className="text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0"
           title="Archive card"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
             <path d="M10 11v6" />
@@ -108,7 +139,9 @@ function CardTile({
           </svg>
         </button>
       </div>
-      <p className="text-xs text-gray-500">{credits_used}/{total_credits} used</p>
+      <p className="text-xs text-gray-500">
+        {credits_used}/{total_credits} used
+      </p>
       <div className="flex gap-2 mt-1">
         <button
           onClick={redeem}
