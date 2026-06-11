@@ -1,14 +1,16 @@
 name: Deploy API
 
 on:
-  pull_request:
-    types: [closed]
+  push:
+    branches:
+      - main
     paths:
       - "api/**"
+      - ".github/workflows/deploy-api.yml"
 
 jobs:
   deploy:
-    if: github.event.pull_request.merged == true
+    if: vars.DEPLOY_API == 'true'
     runs-on: ubuntu-latest
 
     permissions:
@@ -20,11 +22,7 @@ jobs:
         working-directory: api
 
     steps:
-      # Build from main's tip (the merge has already landed by the time this
-      # runs), not the PR ref - this is the code that's actually shipping.
       - uses: actions/checkout@v6
-        with:
-          ref: main
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.1.0
@@ -36,8 +34,6 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Include the run id so a rerun (e.g. push succeeded but the deploy step
-      # below failed) doesn't collide with an already-pushed immutable tag.
       - name: Build and push Docker image
         id: build-push
         env:
@@ -56,3 +52,6 @@ jobs:
           aws lambda update-function-code \
             --function-name coffee-card-api-prod \
             --image-uri "$IMAGE_URI"
+
+          aws lambda wait function-updated-v2 \
+            --function-name coffee-card-api-prod
