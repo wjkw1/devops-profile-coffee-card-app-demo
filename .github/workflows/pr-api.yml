@@ -10,7 +10,7 @@ on:
 
 jobs:
   check-if-deployable:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       id-token: write
       contents: read
@@ -79,7 +79,7 @@ jobs:
             }
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     defaults:
       run:
@@ -105,7 +105,7 @@ jobs:
 
   test:
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     defaults:
       run:
@@ -138,7 +138,7 @@ jobs:
           if-no-files-found: warn
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     defaults:
       run:
