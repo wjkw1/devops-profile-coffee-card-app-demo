@@ -2,9 +2,28 @@
 
 A functional coffee concession card app designed to demonstrate serverless deployment on AWS. The focus is taking a non-trivial application from local development to production using modern DevOps practices.
 
-AWS services: Lambda + API Gateway + DynamoDB + S3 + CloudFront
+AWS services: Lambda + API Gateway + DynamoDB + S3 + CloudFront + WAF
 
-In GitHub, set the `DEPLOY_INFRASTRUCTURE` environment variable to `true` for infrastructure to deploy via github actions.
+## Repository Variables
+
+Set these GitHub repository variables (Settings -> Secrets and variables -> Actions -> Variables) to control deployment behaviour:
+
+| Variable                 | Notes                                                               |
+| ------------------------ | ------------------------------------------------------------------- |
+| `DEPLOY_INFRASTRUCTURE`  | Set to `true` to deploy infrastructure via GitHub Actions           |
+| `DEPLOY_API`             | Set to `true` to deploy the API to Lambda                           |
+| `DEPLOY_FRONTEND`        | Set to `true` to deploy the frontend to S3/CloudFront               |
+| `CLOUDFRONT_DOMAIN_NAME` | CloudFront distribution domain, used for frontend deploy and checks |
+
+### Deployment Sequencing
+
+These variables have an unfortunate ordering dependency, since the API and frontend deployments rely on infrastructure that doesn't exist until the first infra run completes:
+
+1. Set `DEPLOY_INFRASTRUCTURE=true` and run the infra pipeline first. This stands up the ECR repository, Lambda, API Gateway, DynamoDB, and the CloudFront distribution.
+2. Once infra is up, note the generated CloudFront distribution domain and set `CLOUDFRONT_DOMAIN_NAME` accordingly.
+3. Set `DEPLOY_API=true` and `DEPLOY_FRONTEND=true` to enable application deployments on subsequent runs.
+
+See [Future Improvements](#future-improvements) for how this sequencing could be removed entirely.
 
 ## Purpose
 
@@ -166,11 +185,38 @@ Two repositories:
 
 See [api/README.md](api/README.md) for API implementation details, design decisions, and environment variables.
 
-## Out of Scope for V1
+## Future Improvements
 
-- Customer-facing UI or self-service
-- Authentication and authorization (I'd look at Cognito + JWT authorization for a productionised system)
-- QR codes or physical card integration
-- Per-redemption audit trail
-- Fuzzy search
-- Card expiry
+### Removing the deployment sequencing dependency
+
+The [Deployment Sequencing](#deployment-sequencing) steps exist because the frontend and API pipelines depend on an infrastructure output that doesn't exist until the first run. The cleanest fix removes that dependency rather than working around it: provision a stable, known CloudFront domain upfront (e.g. a fixed alias via Route53/ACM) so `CLOUDFRONT_DOMAIN_NAME` never needs to be discovered after deploy. Combined with splitting the API and frontend into their own repositories, each component - infrastructure, API, and frontend - becomes independently versioned and deployable via its own pipeline, triggered only by its own changes, with no shared repository variables or manual sequencing required after the initial bootstrap.
+
+### Authentication and authorization
+
+The dashboard is currently open to anyone who can reach the URL, that also has my shared api key. The highest-value addition would be Cognito-backed login with JWT authorization on the API, so only authenticated salespeople can view or modify customer and card data. This also becomes a prerequisite for any customer-facing self-service work, since that would require distinguishing salesperson sessions from customer sessions.
+
+### Per-redemption audit trail
+
+Redemptions and refunds currently only adjust a `credits_used` counter on the card, with no record of individual events. Adding an append-only audit record (timestamp, card, customer, action, and eventually the authenticated salesperson) would support dispute resolution, usage reporting, and fraud detection without changing the core card model.
+
+### Customer-facing UI or self-service
+
+A separate, lightweight UI (or view) that lets a customer check their own card balance and redemption history. This is the largest scope addition of the future improvements, since it introduces a second frontend audience, requires authentication for customers (distinct from salesperson auth above), and likely needs its own routing and access controls. Best tackled after authentication is in place.
+
+### Card expiry
+
+Add an optional `expires_at` to cards so that unused credits lapse after a configurable period. This is a small data model change (one new attribute and a check in the redeem path) but has business implications - e.g. whether expired credits should be visible, refundable, or simply blocked from redemption - that would need product input before implementation.
+
+Now, my opinion is that the correct thing to do is to _auto refund_ portion of the credits if unused after 1 year.
+
+### Fuzzy search
+
+The current customer search (`?search=`) is a partial name match. Fuzzy matching (e.g. tolerating typos or transpositions) would improve usability for a busy kiosk environment but adds complexity to a DynamoDB single-table design, which doesn't support this natively - likely requiring either a secondary search index (e.g. OpenSearch / Elastic) or client-side filtering on a prefetched customer list.
+
+### QR codes or physical card integration
+
+Generating a QR code per customer (linking to that card's ID) would let a salesperson scan a physical card or mobile QR code to pull up the customer record directly, rather than searching by name.
+
+### UI & UX improvements 🫣
+
+loading/error states for API calls, mobile-responsive layout for the dashboard, optimistic UI updates on redeem/refund, toast notifications instead of alerts, dark mode.

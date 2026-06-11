@@ -5,12 +5,15 @@ import type { Customer } from './types'
 import { api } from './api'
 
 function App() {
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState('')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(false)
 
   const fetchCustomers = useCallback(async (q: string, showLoading = true) => {
-    if (!q.trim()) { setCustomers([]); return }
+    if (!q.trim()) {
+      setCustomers([])
+      return
+    }
     if (showLoading) setLoading(true)
     try {
       const res = await api(`/api/customers?search=${encodeURIComponent(q)}`)
@@ -31,10 +34,18 @@ function App() {
   return (
     <div className="flex h-screen bg-gray-50 items-center">
       <div className="w-1/3 h-full p-6">
-        <Sidebar onSearchChange={setQuery} onCustomerRegistered={() => fetchCustomers(query, false)} />
+        <Sidebar
+          onSearchChange={setQuery}
+          onCustomerRegistered={() => fetchCustomers(query, false)}
+        />
       </div>
       <div className="w-2/3 h-full overflow-y-auto p-6">
-        <CustomerList customers={customers} loading={loading} query={query} onUpdate={() => fetchCustomers(query, false)} />
+        <CustomerList
+          customers={customers}
+          loading={loading}
+          query={query}
+          onUpdate={() => fetchCustomers(query, false)}
+        />
       </div>
     </div>
   )

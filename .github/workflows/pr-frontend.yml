@@ -1,0 +1,195 @@
+name: PR Frontend Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/pr-frontend.yml"
+
+jobs:
+  check-if-deployable:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Warn on PR if DEPLOY_FRONTEND is not true
+        if: vars.DEPLOY_FRONTEND != 'true'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- deploy-frontend-check -->';
+            const body = `${marker}\n⚠️ The \`DEPLOY_FRONTEND\` variable is not set to \`true\`. Merging this PR will not deploy the frontend until it's set.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(comment => comment.body.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              })
+            }
+
+      - name: Resolve warning comment if DEPLOY_FRONTEND is true
+        if: vars.DEPLOY_FRONTEND == 'true'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- deploy-frontend-check -->';
+            const body = [
+              marker,
+              `~~The \`DEPLOY_FRONTEND\` variable is not set to \`true\`. Merging this PR will not deploy the frontend until it's set.~~`,
+              "",
+              `✅ \`DEPLOY_FRONTEND\` is set to \`true\`. This PR will deploy the frontend on merge.`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(comment => comment.body.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            }
+
+      - name: Check CloudFront reachability
+        id: cf_check
+        env:
+          CLOUDFRONT_DOMAIN_NAME: ${{ vars.CLOUDFRONT_DOMAIN_NAME }}
+        run: |
+          if [ -z "$CLOUDFRONT_DOMAIN_NAME" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "domain=$CLOUDFRONT_DOMAIN_NAME" >> "$GITHUB_OUTPUT"
+
+          # Any HTTP response (including 4xx/5xx) counts as reachable - a fresh
+          # distribution with no S3 content yet may well return a 400/403.
+          if curl -sS -o /dev/null --max-time 10 "https://$CLOUDFRONT_DOMAIN_NAME"; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment on CloudFront reachability
+        uses: actions/github-script@v9
+        env:
+          CF_DOMAIN: ${{ steps.cf_check.outputs.domain }}
+          CF_REACHABLE: ${{ steps.cf_check.outputs.reachable }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- cloudfront-reachability-check -->';
+            const domain = process.env.CF_DOMAIN
+            const reachable = process.env.CF_REACHABLE === 'true'
+
+            const body = reachable
+              ? `${marker}\n#### 🌐 CloudFront Reachability Check\n\`https://${domain}\` is reachable - all fixed!`
+              : `${marker}\n#### ⚠️ CloudFront Reachability Check\nThe \`CLOUDFRONT_DOMAIN_NAME\` \`https://${domain}\` could not be reached. This can be expected right after a distribution is first created (no S3 content to serve yet), but is worth checking if it persists.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(comment => comment.body.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              })
+            }
+
+  lint:
+    runs-on: ubuntu-24.04-arm
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ">=10.0.0"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm exec prettier --check .
+
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ">=10.0.0"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
