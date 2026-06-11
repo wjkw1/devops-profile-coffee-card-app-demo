@@ -2,10 +2,82 @@ name: PR API Tests
 
 on:
   pull_request:
+    branches:
+      - main
     paths:
       - "api/**"
+      - ".github/workflows/pr-api.yml"
 
 jobs:
+  check-if-deployable:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - name: Warn on PR if DEPLOY_API is not true
+        if: vars.DEPLOY_API != 'true'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- deploy-api-check -->';
+            const body = `${marker}\n⚠️ The \`DEPLOY_API\` variable is not set to \`true\`. Merging this PR will not deploy the API until it's set.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(comment => comment.body.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              })
+            }
+
+      - name: Resolve warning comment if DEPLOY_API is true
+        if: vars.DEPLOY_API == 'true'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- deploy-api-check -->';
+            const body = `${marker}\n✅ \`DEPLOY_API\` is set to \`true\`. This PR will deploy the API on merge.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(comment => comment.body.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            }
+
   lint:
     runs-on: ubuntu-latest
 
@@ -21,7 +93,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: api/requirements-dev.txt
-      
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
@@ -64,9 +136,8 @@ jobs:
           path: api/coverage.xml
           retention-days: 3
           if-no-files-found: warn
-    
+
   build:
-    needs: test
     runs-on: ubuntu-latest
 
     defaults:
@@ -76,6 +147,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # docker build container, to check it builds upstream
-      # cache the build and push on merge
-      # docker push container to ECR ??
+      - run: docker compose up -d --build
+      - run: docker ps
+
+      - name: Wait for API to be healthy
+        run: |
+          for i in {1..10}; do
+            if curl -sf http://localhost:8000/api/health; then
+              echo "API is healthy"
+              exit 0
+            fi
+            echo "Waiting for API..."
+            sleep 3
+          done
+          echo "API health check failed"
+          exit 1
+
+      - name: Dump container logs
+        run: docker compose logs
+
+      - name: Clean up containers and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans
