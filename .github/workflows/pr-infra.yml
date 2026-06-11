@@ -36,20 +36,20 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v4
 
-      - name: Initialise Terraform
-        id: init
-        env:
-          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
-        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -input=false
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: true
 
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      - name: Terraform fmt
-        id: fmt
-        run: terraform fmt -check
-        continue-on-error: true
+      - name: Initialise Terraform
+        id: init
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -input=false
 
       - name: Terraform Plan
         id: plan

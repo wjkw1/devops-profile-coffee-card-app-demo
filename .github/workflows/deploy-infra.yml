@@ -37,15 +37,15 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v4
 
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
       - name: Initialise Terraform
         id: init
         env:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -input=false
-
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate -no-color
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -var-file=prod.tfvars
