@@ -1,6 +1,6 @@
 # Coffee Card API
 
-FastAPI backend for the Coffee Card concession kiosk.
+FastAPI backend for the Coffee Card concession kiosk. See the [root README](../README.md) for the overall architecture, data models, and API endpoints.
 
 ## Stack
 
@@ -23,8 +23,9 @@ api/
 │   ├── database.py       # CoffeeCardRepository, _get_table (lru_cache), get_repository dep
 │   ├── models.py         # Pydantic models: Customer, Card - to_item/from_item for DynamoDB
 │   ├── middlewares.py    # RequestLoggingMiddleware (correlation ID, duration)
+│   ├── logging_config.py # Configures text vs JSON logging based on settings
 │   ├── schemas.py        # Request/response schemas separate from DB models
-│   ├── settings.py       # LocalSettings (.env) and ProdSettings (SSM Parameter Store)
+│   ├── settings.py       # LocalSettings and ProdSettings (env-driven)
 │   └── routers/
 │       ├── customers.py  # Customer CRUD endpoints
 │       ├── cards.py      # Card endpoints nested under /customers
@@ -38,8 +39,7 @@ api/
 │   └── test_health.py    # Tests for /health endpoint
 ├── Dockerfile
 ├── requirements.txt
-├── requirements-dev.txt  # pytest, pytest-asyncio, httpx, moto[dynamodb]
-└── .env.example
+└── requirements-dev.txt  # pytest, pytest-asyncio, httpx, moto[dynamodb]
 ```
 
 ## Local Development Setup
@@ -99,35 +99,6 @@ pytest tests/test_cards.py
 pytest tests/test_customers.py::TestUpdateCustomer
 ```
 
-## Endpoints
-
-### Customers
-
-| Method | Path                           | Notes                                                      |
-| ------ | ------------------------------ | ---------------------------------------------------------- |
-| GET    | `/api/customers`               | `?search=` partial name match; `?include=archived` for all |
-| POST   | `/api/customers`               | Body: `{ name, email? }`                                   |
-| GET    | `/api/customers/{customer_id}` |                                                            |
-| PATCH  | `/api/customers/{customer_id}` | Updates `name`, `email`, or `is_archived`                  |
-| DELETE | `/api/customers/{customer_id}` | Soft-archives; returns updated customer                    |
-
-### Cards
-
-| Method | Path                                                  | Notes                                          |
-| ------ | ----------------------------------------------------- | ---------------------------------------------- |
-| GET    | `/api/customers/{customer_id}/cards`                  | `?include=archived` to include archived        |
-| POST   | `/api/customers/{customer_id}/cards`                  | Creates card with 5 credits                    |
-| PATCH  | `/api/customers/{customer_id}/cards/{card_id}`        | Updates `is_archived`                          |
-| DELETE | `/api/customers/{customer_id}/cards/{card_id}`        | Soft-delete via `is_archived`                  |
-| POST   | `/api/customers/{customer_id}/cards/{card_id}/redeem` | Increments `credits_used`; 409 if at capacity  |
-| POST   | `/api/customers/{customer_id}/cards/{card_id}/refund` | Decrements `credits_used`; 409 if already zero |
-
-### Health
-
-| Method | Path          | Notes                                                  |
-| ------ | ------------- | ------------------------------------------------------ |
-| GET    | `/api/health` | Returns `version`, `uptime_seconds`, `database` status |
-
 ## Key Decisions
 
 ### Single-table DynamoDB design
@@ -143,7 +114,7 @@ All records live in one table. Customers and their cards share the same partitio
 `get_settings()` branches on `APP_ENV`:
 
 - `local` → `LocalSettings`: reads a `.env` file via pydantic-settings.
-- `prod` → `ProdSettings`: reads from Lambda environment variables, falling back to SSM Parameter Store at `/coffee-card/prod/`.
+- `prod` → `ProdSettings`: reads from Lambda environment variables; defaults `log_format` to `json` for CloudWatch.
 
 ### `is_archived` soft-delete
 
@@ -155,12 +126,15 @@ Both customers and cards use `is_archived` for soft-deletes rather than physical
 
 ## Environment Variables
 
-| Variable                | Default                 | Notes                                   |
-| ----------------------- | ----------------------- | --------------------------------------- |
-| `APP_ENV`               | -                       | Required. `local` or `prod`             |
-| `TABLE_NAME`            | `coffee-cards`          | DynamoDB table name                     |
-| `AWS_REGION`            | `ap-southeast-2`        |                                         |
-| `DYNAMODB_ENDPOINT_URL` | -                       | Set to `http://dynamodb:8000` for local |
-| `CORS_ORIGINS`          | `http://localhost:5173` | Comma-separated list in prod            |
+| Variable                | Default                       | Notes                                       |
+| ----------------------- | ----------------------------- | ------------------------------------------- |
+| `APP_ENV`               | -                             | Required. `local` or `prod`                 |
+| `APP_VERSION`           | `0.1.0`                       | Reported by `/api/health`                   |
+| `LOG_LEVEL`             | `INFO`                        | Python logging level                        |
+| `LOG_FORMAT`            | `text` (local), `json` (prod) | `json` emits structured logs for CloudWatch |
+| `TABLE_NAME`            | `coffee-cards`                | DynamoDB table name                         |
+| `AWS_REGION`            | `ap-southeast-2`              |                                             |
+| `DYNAMODB_ENDPOINT_URL` | -                             | Set to `http://dynamodb:8000` for local     |
+| `CORS_ORIGINS`          | `http://localhost:5173`       | Comma-separated list in prod                |
 
-Copy `.env.example` to `.env` for running outside Docker.
+For local development these are already set in the root [docker-compose.yml](../docker-compose.yml); in prod they're set as Lambda environment variables via Terraform.

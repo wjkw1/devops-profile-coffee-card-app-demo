@@ -7,6 +7,7 @@ on:
     paths:
       - "infra/**"
       - ".github/workflows/deploy-infra.yml"
+      - "!infra/README.md"
 
 jobs:
   apply:

@@ -1,6 +1,6 @@
 # Coffee Card Frontend
 
-React dashboard for the Coffee Card concession kiosk.
+React dashboard for the Coffee Card concession kiosk. See the [root README](../README.md) for the overall architecture, data models, and API endpoints.
 
 ## Components
 
@@ -30,7 +30,17 @@ frontend/
 ├── src/
 │   ├── App.tsx         # Root component
 │   ├── main.tsx        # Entry point — mounts App to #root
-│   └── index.css       # Tailwind directives (@base, @components, @utilities)
+│   ├── api.ts          # fetch wrapper - base URL + x-api-key header
+│   ├── types.ts        # Shared TypeScript types (Customer, Card, etc.)
+│   ├── index.css       # Tailwind directives (@base, @components, @utilities)
+│   ├── assets/
+│   └── components/
+│       ├── Sidebar.tsx              # Search, customer list, API key input, health indicator
+│       ├── CustomerCard.tsx         # Customer panel header + stats
+│       ├── CardTile.tsx             # Punch-card tile with redeem/refund
+│       ├── CustomerList.tsx         # Scrollable customer list
+│       ├── RegisterCustomerModal.tsx
+│       └── ConfirmModal.tsx
 ├── eslint.config.js    # ESLint flat config with Prettier integration
 ├── tailwind.config.js  # Content paths for purging
 ├── postcss.config.js   # Required by Tailwind
@@ -44,7 +54,7 @@ frontend/
 
 ## Local Development
 
-**Prerequisites:** Node 20+ and pnpm.
+**Prerequisites:** Node 24+ and pnpm.
 
 Install pnpm if not already available:
 
@@ -66,6 +76,13 @@ pnpm dev
 ```
 
 The app will be available at `http://localhost:5173` with hot module replacement enabled.
+
+## Configuration
+
+| Source              | Notes                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL` | Build-time env var (see `.env.development` / `.env.production`); points at the API base URL                                        |
+| API key             | Entered in the Sidebar at runtime and stored in `localStorage`; sent as the `x-api-key` header on every request (see `src/api.ts`) |
 
 ## Building for Production
 
@@ -93,5 +110,3 @@ pnpm prettier --check src
 # Format write
 pnpm prettier --write src
 ```
-
-Pre-commit hooks (configured at the repo root) run ruff over the `api/` directory. Frontend linting is enforced in CI via the PR workflow.

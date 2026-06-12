@@ -7,6 +7,7 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/pr-frontend.yml"
+      - "!frontend/README.md"
 
 jobs:
   check-if-deployable:
@@ -79,22 +80,30 @@ jobs:
               })
             }
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deploy-devops-profile-coffee-card-app-demo
+          aws-region: ap-southeast-2
+
       - name: Check CloudFront reachability
         id: cf_check
-        env:
-          CLOUDFRONT_DOMAIN_NAME: ${{ vars.CLOUDFRONT_DOMAIN_NAME }}
         run: |
-          if [ -z "$CLOUDFRONT_DOMAIN_NAME" ]; then
+          DOMAIN_NAME=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?contains(DomainName, 'coffee-card-frontend-prod')]].DomainName | [0]" \
+            --output text)
+
+          if [ -z "$DOMAIN_NAME" ] || [ "$DOMAIN_NAME" == "None" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "configured=true" >> "$GITHUB_OUTPUT"
-          echo "domain=$CLOUDFRONT_DOMAIN_NAME" >> "$GITHUB_OUTPUT"
+          echo "domain=$DOMAIN_NAME" >> "$GITHUB_OUTPUT"
 
           # Any HTTP response (including 4xx/5xx) counts as reachable - a fresh
           # distribution with no S3 content yet may well return a 400/403.
-          if curl -sS -o /dev/null --max-time 10 "https://$CLOUDFRONT_DOMAIN_NAME"; then
+          if curl -sS -o /dev/null --max-time 10 "https://$DOMAIN_NAME"; then
             echo "reachable=true" >> "$GITHUB_OUTPUT"
           else
             echo "reachable=false" >> "$GITHUB_OUTPUT"
@@ -114,7 +123,7 @@ jobs:
 
             const body = reachable
               ? `${marker}\n#### 🌐 CloudFront Reachability Check\n\`https://${domain}\` is reachable - all fixed!`
-              : `${marker}\n#### ⚠️ CloudFront Reachability Check\nThe \`CLOUDFRONT_DOMAIN_NAME\` \`https://${domain}\` could not be reached. This can be expected right after a distribution is first created (no S3 content to serve yet), but is worth checking if it persists.`;
+              : `${marker}\n#### ⚠️ CloudFront Reachability Check\nThe CloudFront distribution domain \`https://${domain}\` could not be reached. This can be expected right after a distribution is first created (no S3 content to serve yet), but is worth checking if it persists.`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

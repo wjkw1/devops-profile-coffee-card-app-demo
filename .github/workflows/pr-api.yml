@@ -7,6 +7,7 @@ on:
     paths:
       - "api/**"
       - ".github/workflows/pr-api.yml"
+      - "!api/README.md"
 
 jobs:
   check-if-deployable:
