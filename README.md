@@ -8,20 +8,21 @@ AWS services: Lambda + API Gateway + DynamoDB + S3 + CloudFront + WAF
 
 Set these GitHub repository variables (Settings -> Secrets and variables -> Actions -> Variables) to control deployment behaviour:
 
-| Variable                 | Notes                                                               |
-| ------------------------ | ------------------------------------------------------------------- |
-| `DEPLOY_INFRASTRUCTURE`  | Set to `true` to deploy infrastructure via GitHub Actions           |
-| `DEPLOY_API`             | Set to `true` to deploy the API to Lambda                           |
-| `DEPLOY_FRONTEND`        | Set to `true` to deploy the frontend to S3/CloudFront               |
-| `CLOUDFRONT_DOMAIN_NAME` | CloudFront distribution domain, used for frontend deploy and checks |
+| Variable                | Notes                                                     |
+| ----------------------- | --------------------------------------------------------- |
+| `DEPLOY_INFRASTRUCTURE` | Set to `true` to deploy infrastructure via GitHub Actions |
+| `DEPLOY_API`            | Set to `true` to deploy the API to Lambda                 |
+| `DEPLOY_FRONTEND`       | Set to `true` to deploy the frontend to S3/CloudFront     |
+
+The frontend pipelines look up the CloudFront distribution at run time by matching on an origin domain containing `coffee-card-frontend-prod`
 
 ### Deployment Sequencing
 
 These variables have an unfortunate ordering dependency, since the API and frontend deployments rely on infrastructure that doesn't exist until the first infra run completes:
 
-1. Set `DEPLOY_INFRASTRUCTURE=true` and run the infra pipeline first. This stands up the ECR repository, Lambda, API Gateway, DynamoDB, and the CloudFront distribution.
-2. Once infra is up, note the generated CloudFront distribution domain and set `CLOUDFRONT_DOMAIN_NAME` accordingly.
-3. Set `DEPLOY_API=true` and `DEPLOY_FRONTEND=true` to enable application deployments on subsequent runs.
+1. Locally, follow the [Infra README.md](/infra/README.md) docs to configure your new ECR repository
+2. Set GitHub repository variable `DEPLOY_INFRASTRUCTURE=true` and run the infra pipeline first. This stands up the rest of our infrastructure: Lambda, API Gateway, DynamoDB, and the CloudFront distribution.
+3. Set GitHub repository variables `DEPLOY_API=true` and `DEPLOY_FRONTEND=true` to enable application deployments on subsequent runs.
 
 See [Future Improvements](#future-improvements) for how this sequencing could be removed entirely.
 
@@ -189,7 +190,7 @@ See [api/README.md](api/README.md) for API implementation details, design decisi
 
 ### Removing the deployment sequencing dependency
 
-The [Deployment Sequencing](#deployment-sequencing) steps exist because the frontend and API pipelines depend on an infrastructure output that doesn't exist until the first run. The cleanest fix removes that dependency rather than working around it: provision a stable, known CloudFront domain upfront (e.g. a fixed alias via Route53/ACM) so `CLOUDFRONT_DOMAIN_NAME` never needs to be discovered after deploy. Combined with splitting the API and frontend into their own repositories, each component - infrastructure, API, and frontend - becomes independently versioned and deployable via its own pipeline, triggered only by its own changes, with no shared repository variables or manual sequencing required after the initial bootstrap.
+The [Deployment Sequencing](#deployment-sequencing) steps exist because the frontend and API pipelines depend on an infrastructure output that doesn't exist until the first infra run. The cleanest fix removes that dependency rather than working around it e.g. split the infra, API and frontend into their own repositories, each component becomes independently versioned and deployable via its own pipeline, triggered only by its own changes, with no shared repository variables or manual sequencing required after the initial bootstrap.
 
 ### Authentication and authorization
 

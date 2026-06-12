@@ -37,16 +37,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        env:
-          VITE_API_BASE_URL: https://${{ vars.CLOUDFRONT_DOMAIN_NAME }}
-        run: pnpm build
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-deploy-devops-profile-coffee-card-app-demo
           aws-region: ap-southeast-2
+
+      - name: Look up CloudFront distribution
+        id: cloudfront
+        run: |
+          read -r DISTRIBUTION_ID DOMAIN_NAME <<< "$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?contains(DomainName, 'coffee-card-frontend-prod')]].[Id, DomainName] | [0]" \
+            --output text)"
+
+          if [ "$DISTRIBUTION_ID" = "None" ] || [ -z "$DISTRIBUTION_ID" ]; then
+            echo "::error::No CloudFront distribution found with origin matching 'coffee-card-frontend-prod'"
+            exit 1
+          fi
+
+          echo "id=$DISTRIBUTION_ID" >> "$GITHUB_OUTPUT"
+          echo "domain=$DOMAIN_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: https://${{ steps.cloudfront.outputs.domain }}
+        run: pnpm build
 
       - name: Sync to S3
         run: |
@@ -54,10 +69,6 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Origins.Items[?contains(DomainName, 'coffee-card-frontend-prod')]].Id | [0]" \
-            --output text)
-
           aws cloudfront create-invalidation \
-            --distribution-id "$DISTRIBUTION_ID" \
+            --distribution-id "${{ steps.cloudfront.outputs.id }}" \
             --paths "/*"
