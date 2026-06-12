@@ -17,7 +17,7 @@ ECR is also managed here rather than in a shared account-wide repo like `wjkw1/a
 3. Stand up ECR first, before anything else. This is important because the image needs to exist before the rest of the infrastructure can reference it.
 
    ```zsh
-   terraform apply \
+   terraform apply -var-file=prod.tfvars \
      -target=aws_ecr_repository.api \
      -target=aws_ecr_lifecycle_policy.api
    ```
