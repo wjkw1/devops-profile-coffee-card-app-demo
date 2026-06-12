@@ -2,41 +2,53 @@
 
 A functional coffee concession card app designed to demonstrate serverless deployment on AWS. The focus is taking a non-trivial application from local development to production using modern DevOps practices.
 
-AWS services: Lambda + API Gateway + DynamoDB + S3 + CloudFront + WAF
+An end-to-end showcase of:
+
+- Serverless API on Lambda behind API Gateway, deployed via container image
+- NoSQL data modelling with DynamoDB (single-table design)
+- Static frontend on S3 + CloudFront, fronted by WAF
+- GitHub Actions CI/CD with OIDC - no static AWS credentials
+
+## Documentation
+
+- [api/README.md](api/README.md) - FastAPI backend: project layout, environment variables, running tests
+- [frontend/README.md](frontend/README.md) - React dashboard: components, local dev, build
+- [infra/README.md](infra/README.md) - Terraform setup and provisioned AWS resources
 
 ## Repository Variables
 
 Set these GitHub repository variables (Settings -> Secrets and variables -> Actions -> Variables) to control deployment behaviour:
 
-| Variable                 | Notes                                                               |
-| ------------------------ | ------------------------------------------------------------------- |
-| `DEPLOY_INFRASTRUCTURE`  | Set to `true` to deploy infrastructure via GitHub Actions           |
-| `DEPLOY_API`             | Set to `true` to deploy the API to Lambda                           |
-| `DEPLOY_FRONTEND`        | Set to `true` to deploy the frontend to S3/CloudFront               |
-| `CLOUDFRONT_DOMAIN_NAME` | CloudFront distribution domain, used for frontend deploy and checks |
-
-### Deployment Sequencing
-
-These variables have an unfortunate ordering dependency, since the API and frontend deployments rely on infrastructure that doesn't exist until the first infra run completes:
-
-1. Set `DEPLOY_INFRASTRUCTURE=true` and run the infra pipeline first. This stands up the ECR repository, Lambda, API Gateway, DynamoDB, and the CloudFront distribution.
-2. Once infra is up, note the generated CloudFront distribution domain and set `CLOUDFRONT_DOMAIN_NAME` accordingly.
-3. Set `DEPLOY_API=true` and `DEPLOY_FRONTEND=true` to enable application deployments on subsequent runs.
-
-See [Future Improvements](#future-improvements) for how this sequencing could be removed entirely.
-
-## Purpose
-
-An end-to-end showcase of:
-
-- Serverless API on Lambda behind API Gateway, deployed via container image
-- NoSQL data modelling with DynamoDB (single-table design)
-- Static frontend on S3 + CloudFront
-- GitHub Actions CI/CD with OIDC - no static AWS credentials
+| Variable                | Notes                                                     |
+| ----------------------- | --------------------------------------------------------- |
+| `DEPLOY_INFRASTRUCTURE` | Set to `true` to deploy infrastructure via GitHub Actions |
+| `DEPLOY_API`            | Set to `true` to deploy the API to Lambda                 |
+| `DEPLOY_FRONTEND`       | Set to `true` to deploy the frontend to S3/CloudFront     |
 
 ## Scenario
 
 A salesperson operates a kiosk-style dashboard. They register walk-up customers, sell concession cards with a set number of coffee credits, and redeem coffees by ticking off credits. There is no customer-facing UI because the salesperson controls everything.
+
+## Quick Start
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Docker Compose](https://docs.docker.com/compose/install/), [pnpm](https://pnpm.io/installation)
+
+Install frontend dependencies once (see [frontend/README.md](frontend/README.md) for details):
+
+```bash
+cd frontend && pnpm install
+```
+
+Then from the repository root:
+
+| Command     | Does                                                                |
+| ----------- | ------------------------------------------------------------------- |
+| `make dev`  | Starts DynamoDB Local + API in Docker, runs the frontend dev server |
+| `make down` | Stops all Docker services                                           |
+| `make seed` | Seeds sample data (Alice + Bob + cards)                             |
+| `make logs` | Tails API logs                                                      |
+
+The frontend is available at `http://localhost:5173`, the API at `http://localhost:8000`.
 
 ## Architecture
 
@@ -50,55 +62,45 @@ See more about the C4 Models diagram methodology: [C4 Models](https://c4models.c
 
 > ![C4 Container Diagram](diagrams/Coffee%20Cards%20C4%20-%20Container%20v2.jpg)
 
-See more about this diagram methodology: [C4 Models](https://c4models.com)
+### AWS Resources
+
+```mermaid
+flowchart LR
+    User[Salesperson Browser]
+
+    subgraph AWS
+        WAF[WAF Web ACL<br/>geo-block NZ-only, rate limit, managed rules]
+        CF[CloudFront Distribution]
+        S3F[S3 - Frontend SPA]
+        APIGW[API Gateway - HTTP API]
+        Authorizer[Lambda Authorizer<br/>validates x-api-key]
+        SSM[SSM Parameter Store<br/>API key]
+        Lambda[Lambda - FastAPI via Mangum]
+        DDB[(DynamoDB<br/>single-table)]
+        ECR[ECR Repository]
+        S3L[S3 - Access Logs]
+    end
+
+    User -->|HTTPS| CF
+    CF -.protected by.-> WAF
+    CF -->|static assets| S3F
+    CF -->|"/api/*"| APIGW
+    CF -.access logs.-> S3L
+    APIGW --> Authorizer
+    Authorizer --> SSM
+    APIGW --> Lambda
+    Lambda --> DDB
+    ECR -.image.-> Lambda
+```
 
 ## Tech Stack
 
-### API
-
-| Component  | Choice           | Notes                                          |
-| ---------- | ---------------- | ---------------------------------------------- |
-| Language   | Python 3.12      |                                                |
-| Framework  | FastAPI          | Auto-generated OpenAPI docs at `/docs`         |
-| Validation | Pydantic v2      | Request/response schemas and settings          |
-| Database   | DynamoDB         | Single-table design, boto3                     |
-| Runtime    | AWS Lambda       | Mangum ASGI adapter + Lambda Web Adapter       |
-| Container  | python:3.12-slim | Multi-stage Dockerfile                         |
-| Testing    | pytest + moto    | DynamoDB mocked in-process, no Docker required |
-| Linting    | Ruff             | Lint and format in one tool                    |
-
-### Frontend Layer
-
-| Component   | Choice               | Notes                                 |
-| ----------- | -------------------- | ------------------------------------- |
-| Framework   | React 18             | Single-page app, no SSR needed        |
-| Build Tool  | Vite                 | Fast HMR, optimised production builds |
-| Styling     | Tailwind CSS v3      | Utility-first, small bundles          |
-| HTTP Client | fetch (thin wrapper) | 4–5 endpoints don't justify a library |
-| Hosting     | S3 + CloudFront      | Static assets served via CDN          |
-
-### CI/CD (GitHub Actions)
-
-| Concern           | Choice                                                   |
-| ----------------- | -------------------------------------------------------- |
-| AWS Auth          | OIDC Federation - no static access keys                  |
-| API pipeline      | Lint -> Test -> Build -> Push to ECR -> Deploy to Lambda |
-| Frontend pipeline | Lint -> Build -> Deploy to S3 -> CloudFront invalidation |
-| Coverage          | pytest-cov, reported on every PR                         |
-
-## Getting Started
-
-**Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Docker Compose](https://docs.docker.com/compose/install/), [pnpm](https://pnpm.io/installation)
-
-| Command     | Does                                                                   |
-| ----------- | ---------------------------------------------------------------------- |
-| `make dev`  | Starts DynamoDB Local + API in background, runs frontend in foreground |
-| `make down` | Stops all Docker services                                              |
-| `make seed` | Seeds sample data (Alice + Bob + cards)                                |
-
-The frontend is available at `http://localhost:5173`, the API at `http://localhost:8000`.
-
-Copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_API_BASE_URL=http://localhost:8000` before running `make dev`.
+| Layer          | Choice                                                        | Details                                                 |
+| -------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| API            | Python 3.12, FastAPI, DynamoDB (boto3), AWS Lambda via Mangum | [api/README.md](api/README.md)                          |
+| Frontend       | React 19, Vite, Tailwind CSS v3, TypeScript                   | [frontend/README.md](frontend/README.md)                |
+| Infrastructure | Terraform - Lambda, API Gateway, DynamoDB, S3/CloudFront, WAF | [infra/README.md](infra/README.md)                      |
+| CI/CD          | GitHub Actions, OIDC federation (no static AWS credentials)   | See [Repository Variables](#repository-variables) below |
 
 ## Data Models
 
@@ -170,20 +172,40 @@ A single-page salesperson dashboard providing:
 - A customer view showing active cards and remaining credits
 - Redeem and refund buttons on each card
 
-No customer-facing UI, no QR codes, no authentication layer in the MVP.
+No customer-facing UI, no QR codes. Access is gated by a shared API key (see [Future Improvements](#authentication-and-authorization) for per-user auth).
 
 ### Why not a BFF?
 
-A Backend-for-Frontend layer was considered and deliberately skipped. The app has one frontend, no authentication layer, and each view maps to a single API call. The static SPA calling FastAPI directly keeps the architecture simple and the CI/CD pipeline focused on two services rather than three.
+A Backend-for-Frontend layer was considered and deliberately skipped. The app has one frontend, a single shared API key for access control, and each view maps to a single API call. The static SPA calling FastAPI directly keeps the architecture simple and the CI/CD pipeline focused on two services rather than three.
+
+### Deployment Sequencing
+
+These variables have an unfortunate ordering dependency, since the API and frontend deployments rely on infrastructure that doesn't exist until the first infra run completes - and the infra run itself can't create the Lambda until an image exists in ECR:
+
+1. **Locally**: `terraform apply -target=aws_ecr_repository.api` to create just the ECR repo, then build and push an image (see [infra/README.md](infra/README.md)).
+2. Set `DEPLOY_INFRASTRUCTURE=true` and run the infra pipeline. With an image now in ECR, Terraform can create the Lambda, API Gateway, DynamoDB, and the CloudFront distribution.
+3. Note the generated CloudFront distribution domain and set `CLOUDFRONT_DOMAIN_NAME` accordingly.
+4. Set `DEPLOY_API=true` and `DEPLOY_FRONTEND=true` to enable application deployments on subsequent runs.
+
+```mermaid
+flowchart TD
+    A["1. Local: terraform apply -target=ecr<br/>then docker build &amp; push image"] --> B["2. DEPLOY_INFRASTRUCTURE=true<br/>infra pipeline creates Lambda, API Gateway,<br/>DynamoDB, CloudFront (image already in ECR)"]
+    B --> C["3. Read cloudfront_domain_name output<br/>set CLOUDFRONT_DOMAIN_NAME repo variable"]
+    C --> D["4. Set DEPLOY_API=true and DEPLOY_FRONTEND=true"]
+    D --> E["Subsequent pushes to api/ or frontend/<br/>deploy independently"]
+```
+
+See [Future Improvements](#removing-the-deployment-sequencing-dependency) for how this sequencing could be removed entirely.
 
 ## Repository Structure
 
-Two repositories:
+A single repository containing application code and infrastructure:
 
-1. **devops-profile-coffee-card-app-demo** - Application code (`api/`, `frontend/`)
-2. **devops-profile-coffee-card-infra-demo** - Terraform infrastructure (Lambda, API Gateway, DynamoDB, S3/CloudFront)
+- `api/` - FastAPI backend ([details](api/README.md))
+- `frontend/` - React dashboard ([details](frontend/README.md))
+- `infra/` - Terraform infrastructure ([details](infra/README.md))
 
-See [api/README.md](api/README.md) for API implementation details, design decisions, and environment variables.
+The OIDC roles GitHub Actions assumes to deploy (`github-actions-deploy-*`, `github-actions-tf-plan-*`, `github-actions-tf-apply-*`) are provisioned separately in the `wjkw1/aws-foundations` repository, not here.
 
 ## Future Improvements
 
@@ -193,7 +215,7 @@ The [Deployment Sequencing](#deployment-sequencing) steps exist because the fron
 
 ### Authentication and authorization
 
-The dashboard is currently open to anyone who can reach the URL, that also has my shared api key. The highest-value addition would be Cognito-backed login with JWT authorization on the API, so only authenticated salespeople can view or modify customer and card data. This also becomes a prerequisite for any customer-facing self-service work, since that would require distinguishing salesperson sessions from customer sessions.
+The dashboard is currently open to anyone who can reach the URL and has the shared API key. The highest-value addition would be Cognito-backed login with JWT authorization on the API, so only authenticated salespeople can view or modify customer and card data. This also becomes a prerequisite for any customer-facing self-service work, since that would require distinguishing salesperson sessions from customer sessions.
 
 ### Per-redemption audit trail
 

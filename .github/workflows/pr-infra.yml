@@ -5,6 +5,7 @@ on:
     paths:
       - "infra/**"
       - ".github/workflows/pr-infra.yml"
+      - "!infra/README.md"
 
 jobs:
   plan:
